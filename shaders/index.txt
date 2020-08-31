@@ -1,2 +1,6 @@
 imgui.vert
 imgui.frag
+color.vert
+color.frag
+surface.vert
+surface.frag

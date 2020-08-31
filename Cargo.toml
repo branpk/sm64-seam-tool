@@ -10,6 +10,8 @@ imgui = "0.4.0"
 futures = "0.3.5"
 imgui-winit-support = "0.4.0"
 bytemuck = "1.4.0"
+read-process-memory = "0.1.2"
+nalgebra = "0.22.0"
 
 [build-dependencies]
 walkdir = "2.3.1"
