@@ -83,12 +83,23 @@ impl<T: Clone> ProjectedPoint<T> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Edge {
     pub projection_axis: ProjectionAxis,
+    pub orientation: Orientation,
     pub vertex1: ProjectedPoint<i16>,
     pub vertex2: ProjectedPoint<i16>,
-    pub orientation: Orientation,
 }
 
 impl Edge {
+    pub fn new(vertices: ([i16; 3], [i16; 3]), normal: [f32; 3]) -> Self {
+        let projection_axis = ProjectionAxis::of_wall(&normal);
+        let orientation = Orientation::of_wall(&normal);
+        Self {
+            projection_axis,
+            orientation,
+            vertex1: ProjectedPoint::project(vertices.0, projection_axis),
+            vertex2: ProjectedPoint::project(vertices.1, projection_axis),
+        }
+    }
+
     /// Return true if the given point lies on the inside of the edge.
     ///
     /// A point is inside a wall iff all three of the wall's edges accept the point.

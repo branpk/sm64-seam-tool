@@ -34,6 +34,7 @@ struct SceneBundle {
     hidden_surface_vertex_buffer: (usize, wgpu::Buffer),
     wall_hitbox_vertex_buffer: (usize, wgpu::Buffer),
     wall_hitbox_outline_vertex_buffer: (usize, wgpu::Buffer),
+    seam_vertex_buffer: (usize, wgpu::Buffer),
 }
 
 pub struct Renderer {
@@ -45,6 +46,7 @@ pub struct Renderer {
     wall_hitbox_pipeline: wgpu::RenderPipeline,
     wall_hitbox_depth_pass_pipeline: wgpu::RenderPipeline,
     wall_hitbox_outline_pipeline: wgpu::RenderPipeline,
+    seam_pipeline: wgpu::RenderPipeline,
 }
 
 impl Renderer {
@@ -101,6 +103,8 @@ impl Renderer {
             true,
             wgpu::PrimitiveTopology::LineList,
         );
+        let seam_pipeline =
+            create_seam_pipeline(device, &transform_bind_group_layout, output_format);
 
         Self {
             multisample_texture: None,
@@ -111,6 +115,7 @@ impl Renderer {
             wall_hitbox_pipeline,
             wall_hitbox_depth_pass_pipeline,
             wall_hitbox_outline_pipeline,
+            seam_pipeline,
         }
     }
 
@@ -230,12 +235,23 @@ impl Renderer {
                     }),
                 );
 
+                let seam_vertices = get_seam_vertices(scene);
+                let seam_vertex_buffer = (
+                    seam_vertices.len(),
+                    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: None,
+                        contents: cast_slice(&seam_vertices),
+                        usage: wgpu::BufferUsage::VERTEX,
+                    }),
+                );
+
                 SceneBundle {
                     transform_bind_group,
                     surface_vertex_buffer,
                     hidden_surface_vertex_buffer,
                     wall_hitbox_vertex_buffer,
                     wall_hitbox_outline_vertex_buffer,
+                    seam_vertex_buffer,
                 }
             })
             .collect();
@@ -289,6 +305,10 @@ impl Renderer {
                 render_pass.set_pipeline(&self.surface_pipeline);
                 render_pass.set_vertex_buffer(0, bundle.surface_vertex_buffer.1.slice(..));
                 render_pass.draw(0..bundle.surface_vertex_buffer.0 as u32, 0..1);
+
+                render_pass.set_pipeline(&self.seam_pipeline);
+                render_pass.set_vertex_buffer(0, bundle.seam_vertex_buffer.1.slice(..));
+                render_pass.draw(0..bundle.seam_vertex_buffer.0 as u32, 0..1);
 
                 if scene.wall_hitbox_radius > 0.0 {
                     // Render lines first since tris write to z buffer
@@ -466,6 +486,75 @@ fn create_wall_hitbox_pipeline(
             } else {
                 wgpu::ColorWrite::empty()
             },
+        }],
+        depth_stencil_state: Some(wgpu::DepthStencilStateDescriptor {
+            format: DEPTH_TEXTURE_FORMAT,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::LessEqual,
+            stencil: wgpu::StencilStateDescriptor::default(),
+        }),
+        vertex_state: wgpu::VertexStateDescriptor {
+            index_format: wgpu::IndexFormat::Uint16,
+            vertex_buffers: &[wgpu::VertexBufferDescriptor {
+                stride: size_of::<Vertex>() as wgpu::BufferAddress,
+                step_mode: wgpu::InputStepMode::Vertex,
+                attributes: &[
+                    // a_Pos
+                    wgpu::VertexAttributeDescriptor {
+                        offset: offset_of!(Vertex, pos) as wgpu::BufferAddress,
+                        format: wgpu::VertexFormat::Float3,
+                        shader_location: 0,
+                    },
+                    // a_Color
+                    wgpu::VertexAttributeDescriptor {
+                        offset: offset_of!(Vertex, color) as wgpu::BufferAddress,
+                        format: wgpu::VertexFormat::Float4,
+                        shader_location: 1,
+                    },
+                ],
+            }],
+        },
+        sample_count: NUM_OUTPUT_SAMPLES,
+        sample_mask: !0,
+        alpha_to_coverage_enabled: false,
+    })
+}
+
+fn create_seam_pipeline(
+    device: &wgpu::Device,
+    transform_bind_group_layout: &wgpu::BindGroupLayout,
+    output_format: wgpu::TextureFormat,
+) -> wgpu::RenderPipeline {
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: None,
+        layout: Some(
+            &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: None,
+                bind_group_layouts: &[&transform_bind_group_layout],
+                push_constant_ranges: &[],
+            }),
+        ),
+        vertex_stage: wgpu::ProgrammableStageDescriptor {
+            module: &device
+                .create_shader_module(wgpu::include_spirv!("../bin/shaders/color.vert.spv")),
+            entry_point: "main",
+        },
+        fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
+            module: &device
+                .create_shader_module(wgpu::include_spirv!("../bin/shaders/color.frag.spv")),
+            entry_point: "main",
+        }),
+        rasterization_state: None,
+        primitive_topology: wgpu::PrimitiveTopology::TriangleList,
+        color_states: &[wgpu::ColorStateDescriptor {
+            format: output_format,
+            alpha_blend: wgpu::BlendDescriptor::REPLACE,
+            color_blend: wgpu::BlendDescriptor {
+                src_factor: wgpu::BlendFactor::SrcAlpha,
+                dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                operation: wgpu::BlendOperation::Add,
+            },
+            write_mask: wgpu::ColorWrite::ALL,
         }],
         depth_stencil_state: Some(wgpu::DepthStencilStateDescriptor {
             format: DEPTH_TEXTURE_FORMAT,
@@ -700,4 +789,54 @@ fn get_wall_hitbox_vertices(scene: &Scene) -> (Vec<Vertex>, Vec<Vertex>) {
     }
 
     (wall_hitbox_vertices, wall_hitbox_outline_vertices)
+}
+
+fn get_seam_vertices(scene: &Scene) -> Vec<Vertex> {
+    let mut vertices = Vec::new();
+
+    for seam in &scene.seams {
+        let endpoint1 = seam.seam.endpoints.0;
+        let endpoint1 = Point3f::new(
+            endpoint1[0] as f32,
+            endpoint1[1] as f32,
+            endpoint1[2] as f32,
+        );
+        let endpoint2 = seam.seam.endpoints.1;
+        let endpoint2 = Point3f::new(
+            endpoint2[0] as f32,
+            endpoint2[1] as f32,
+            endpoint2[2] as f32,
+        );
+
+        let seam_dir = (endpoint2 - endpoint1).normalize();
+        let perp_dir_1 = Vector3f::y().cross(&seam_dir);
+        let perp_dir_2 = seam_dir.cross(&perp_dir_1);
+
+        let color = [0.1, 0.1, 0.1, 1.0];
+        let radius = 5.0;
+        let num_sides = 10;
+
+        let mut push_vertex = |endpoint: Point3f, angle: f32| {
+            let pos = endpoint + radius * (angle.cos() * perp_dir_1 + angle.sin() * perp_dir_2);
+            vertices.push(Vertex {
+                pos: [pos.x, pos.y, pos.z],
+                color,
+            });
+        };
+
+        for i in 0..num_sides {
+            let a0 = (i as f32 / num_sides as f32) * 2.0 * PI;
+            let a1 = ((i + 1) as f32 / num_sides as f32) * 2.0 * PI;
+
+            push_vertex(endpoint1, a0);
+            push_vertex(endpoint2, a0);
+            push_vertex(endpoint1, a1);
+
+            push_vertex(endpoint2, a0);
+            push_vertex(endpoint1, a1);
+            push_vertex(endpoint2, a1);
+        }
+    }
+
+    vertices
 }

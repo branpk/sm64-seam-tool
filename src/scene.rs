@@ -1,4 +1,7 @@
-use crate::geo::{Point3f, Vector3f};
+use crate::{
+    geo::{Point3f, Vector3f},
+    seam::Seam,
+};
 use std::collections::HashSet;
 
 #[derive(Debug, Clone)]
@@ -9,6 +12,7 @@ pub struct Scene {
     pub wall_hitbox_radius: f32,
     pub hovered_surface: Option<usize>,
     pub hidden_surfaces: HashSet<usize>,
+    pub seams: Vec<SeamInfo>,
 }
 
 #[derive(Debug, Clone)]
@@ -65,4 +69,9 @@ pub enum SurfaceType {
     Ceiling,
     WallXProj,
     WallZProj,
+}
+
+#[derive(Debug, Clone)]
+pub struct SeamInfo {
+    pub seam: Seam,
 }

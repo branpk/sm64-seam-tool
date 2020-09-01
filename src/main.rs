@@ -6,8 +6,13 @@ use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use process::Process;
 use read_process_memory::{copy_address, TryIntoProcessHandle};
 use renderer::Renderer;
-use scene::{Camera, RotateCamera, Scene, SurfaceType, Viewport};
-use std::{collections::HashSet, convert::TryInto, time::Instant};
+use scene::{Camera, RotateCamera, Scene, SeamInfo, SurfaceType, Viewport};
+use seam_processor::SeamProcessor;
+use std::{
+    collections::HashSet,
+    convert::TryInto,
+    time::{Duration, Instant},
+};
 use winit::{
     dpi::PhysicalSize,
     event::{Event, WindowEvent},
@@ -23,8 +28,15 @@ mod imgui_renderer;
 mod process;
 mod renderer;
 mod scene;
+mod seam;
+mod seam_processor;
+mod spatial_partition;
 
-fn game_state_to_scene(viewport: Viewport, game_state: &GameState) -> Scene {
+fn build_scene(
+    viewport: Viewport,
+    game_state: &GameState,
+    seam_processor: &SeamProcessor,
+) -> Scene {
     Scene {
         viewport,
         camera: Camera::Rotate(RotateCamera {
@@ -63,6 +75,11 @@ fn game_state_to_scene(viewport: Viewport, game_state: &GameState) -> Scene {
         wall_hitbox_radius: 0.0,
         hovered_surface: None,
         hidden_surfaces: HashSet::new(),
+        seams: seam_processor
+            .seams()
+            .iter()
+            .map(|seam| SeamInfo { seam: seam.clone() })
+            .collect(),
     }
 }
 
@@ -121,9 +138,24 @@ fn main() {
             ImguiRenderer::new(&mut imgui, &device, &queue, swap_chain_desc.format);
 
         let mut renderer = Renderer::new(&device, swap_chain_desc.format);
+        let mut seam_processor = SeamProcessor::new();
+
+        let mut last_fps_time = Instant::now();
+        let mut frames_since_fps = 0;
 
         let mut last_frame = Instant::now();
         event_loop.run(move |event, _, control_flow| {
+            let elapsed = last_fps_time.elapsed();
+            if elapsed > Duration::from_secs(1) {
+                let fps = frames_since_fps as f64 / elapsed.as_secs_f64();
+                let mspf = elapsed.as_millis() as f64 / frames_since_fps as f64;
+
+                println!("{:.2} mspf = {:.1} fps", mspf, fps);
+
+                last_fps_time = Instant::now();
+                frames_since_fps = 0;
+            }
+
             platform.handle_event(imgui.io_mut(), &window, &event);
             match event {
                 Event::WindowEvent { event, .. } => match event {
@@ -141,6 +173,7 @@ fn main() {
                         last_frame = imgui.io_mut().update_delta_time(last_frame);
 
                         let state = GameState::read(&Globals::US, &process);
+                        seam_processor.update(&state);
 
                         let viewport = Viewport {
                             x: 0.0,
@@ -148,7 +181,7 @@ fn main() {
                             width: imgui.io().display_size[0],
                             height: imgui.io().display_size[1],
                         };
-                        let scene = game_state_to_scene(viewport, &state);
+                        let scene = build_scene(viewport, &state, &seam_processor);
 
                         platform
                             .prepare_frame(imgui.io_mut(), &window)
@@ -186,6 +219,8 @@ fn main() {
                             (swap_chain_desc.width, swap_chain_desc.height),
                             draw_data,
                         );
+
+                        frames_since_fps += 1;
                     }
                 }
                 _ => {}
