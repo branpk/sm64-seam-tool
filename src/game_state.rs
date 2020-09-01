@@ -28,6 +28,7 @@ impl Globals {
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Surface {
+    pub flags: u8,
     pub vertex1: [i16; 3],
     pub vertex2: [i16; 3],
     pub vertex3: [i16; 3],
@@ -78,6 +79,7 @@ impl GameState {
                     };
 
                     Surface {
+                        flags: chunk[0x07],
                         vertex1: read_s16_3(0x0A),
                         vertex2: read_s16_3(0x10),
                         vertex3: read_s16_3(0x16),

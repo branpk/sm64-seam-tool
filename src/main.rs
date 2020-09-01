@@ -15,6 +15,7 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
+mod edge;
 mod game_state;
 mod geo;
 mod imgui_renderer;
