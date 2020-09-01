@@ -1,7 +1,20 @@
 use crate::{
-    edge::{Edge, ProjectionAxis},
-    float_range::RangeF32,
+    edge::{Edge, ProjectedPoint, ProjectionAxis},
+    float_range::{step_f32_by, RangeF32},
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PointInteraction {
+    Gap,
+    Overlap,
+    None,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct RangeInteraction {
+    pub has_gap: bool,
+    pub has_overlap: bool,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Seam {
@@ -28,13 +41,81 @@ impl Seam {
 
         // TODO: Edges that don't share vertices
         if vertices1.0 == vertices2.1 && vertices1.1 == vertices2.0 {
-            Some(Seam {
+            let seam = Seam {
                 edge1,
                 edge2,
                 endpoints: vertices1,
-            })
+            };
+
+            // Simplifying assumption
+            if seam.edge1.is_vertical() || seam.edge2.is_vertical() {
+                return None;
+            }
+
+            Some(seam)
         } else {
             None
         }
+    }
+
+    pub fn w_range(&self) -> RangeF32 {
+        self.edge1.w_range().intersect(&self.edge2.w_range())
+    }
+
+    pub fn check_point(&self, w: f32) -> PointInteraction {
+        let y0 = self.edge1.approx_y(w);
+
+        // TODO: Verify that we go far enough to be within each wall separately
+
+        for i in -1..=1 {
+            let y = step_f32_by(y0, i);
+            let point = ProjectedPoint { w, y };
+
+            let in1 = self.edge1.accepts_projected(point);
+            let in2 = self.edge2.accepts_projected(point);
+
+            if in1 && in2 {
+                return PointInteraction::Overlap;
+            }
+            if !in1 && !in2 {
+                return PointInteraction::Gap;
+            }
+        }
+
+        PointInteraction::None
+    }
+
+    pub fn check_range(&self, w_range: RangeF32) -> RangeInteraction {
+        let mut interaction = RangeInteraction::default();
+
+        // TODO: Remove
+        if !w_range
+            .intersect(&RangeF32::inclusive(-10.0, 10.0))
+            .is_empty()
+        {
+            return interaction;
+        }
+
+        for w in w_range.iter() {
+            match self.check_point(w) {
+                PointInteraction::Gap => interaction.has_gap = true,
+                PointInteraction::Overlap => interaction.has_overlap = true,
+                PointInteraction::None => {}
+            }
+        }
+        interaction
+    }
+
+    pub fn approx_point_at_w(&self, w: f32) -> [f32; 3] {
+        let x1 = self.endpoints.0[0] as f32;
+        let y1 = self.endpoints.0[1] as f32;
+        let z1 = self.endpoints.0[2] as f32;
+
+        let x2 = self.endpoints.1[0] as f32;
+        let y2 = self.endpoints.1[1] as f32;
+        let z2 = self.endpoints.1[2] as f32;
+
+        let t = self.edge1.approx_t(w);
+        [x1 + t * (x2 - x1), y1 + t * (y2 - y1), z1 + t * (z2 - z1)]
     }
 }

@@ -795,46 +795,58 @@ fn get_seam_vertices(scene: &Scene) -> Vec<Vertex> {
     let mut vertices = Vec::new();
 
     for seam in &scene.seams {
-        let endpoint1 = seam.seam.endpoints.0;
-        let endpoint1 = Point3f::new(
-            endpoint1[0] as f32,
-            endpoint1[1] as f32,
-            endpoint1[2] as f32,
-        );
-        let endpoint2 = seam.seam.endpoints.1;
-        let endpoint2 = Point3f::new(
-            endpoint2[0] as f32,
-            endpoint2[1] as f32,
-            endpoint2[2] as f32,
-        );
+        for segment in &seam.segments {
+            let endpoint1 = Point3f::new(
+                segment.endpoint1[0],
+                segment.endpoint1[1],
+                segment.endpoint1[2],
+            );
+            let endpoint2 = Point3f::new(
+                segment.endpoint2[0],
+                segment.endpoint2[1],
+                segment.endpoint2[2],
+            );
 
-        let seam_dir = (endpoint2 - endpoint1).normalize();
-        let perp_dir_1 = Vector3f::y().cross(&seam_dir);
-        let perp_dir_2 = seam_dir.cross(&perp_dir_1);
+            let seam_dir = (endpoint2 - endpoint1).normalize();
+            let perp_dir_1 = Vector3f::y().cross(&seam_dir);
+            let perp_dir_2 = seam_dir.cross(&perp_dir_1);
 
-        let color = [0.1, 0.1, 0.1, 1.0];
-        let radius = 5.0;
-        let num_sides = 10;
+            let color = match segment.interaction {
+                Some(interaction) => {
+                    if interaction.has_gap {
+                        [0.0, 1.0, 0.0, 1.0]
+                    } else if interaction.has_overlap {
+                        [0.0, 0.0, 1.0, 1.0]
+                    } else {
+                        [0.0, 0.0, 0.0, 1.0]
+                    }
+                }
+                None => [0.1, 0.1, 0.1, 1.0],
+            };
 
-        let mut push_vertex = |endpoint: Point3f, angle: f32| {
-            let pos = endpoint + radius * (angle.cos() * perp_dir_1 + angle.sin() * perp_dir_2);
-            vertices.push(Vertex {
-                pos: [pos.x, pos.y, pos.z],
-                color,
-            });
-        };
+            let radius = 5.0;
+            let num_sides = 10;
 
-        for i in 0..num_sides {
-            let a0 = (i as f32 / num_sides as f32) * 2.0 * PI;
-            let a1 = ((i + 1) as f32 / num_sides as f32) * 2.0 * PI;
+            let mut push_vertex = |endpoint: Point3f, angle: f32| {
+                let pos = endpoint + radius * (angle.cos() * perp_dir_1 + angle.sin() * perp_dir_2);
+                vertices.push(Vertex {
+                    pos: [pos.x, pos.y, pos.z],
+                    color,
+                });
+            };
 
-            push_vertex(endpoint1, a0);
-            push_vertex(endpoint2, a0);
-            push_vertex(endpoint1, a1);
+            for i in 0..num_sides {
+                let a0 = (i as f32 / num_sides as f32) * 2.0 * PI;
+                let a1 = ((i + 1) as f32 / num_sides as f32) * 2.0 * PI;
 
-            push_vertex(endpoint2, a0);
-            push_vertex(endpoint1, a1);
-            push_vertex(endpoint2, a1);
+                push_vertex(endpoint1, a0);
+                push_vertex(endpoint2, a0);
+                push_vertex(endpoint1, a1);
+
+                push_vertex(endpoint2, a0);
+                push_vertex(endpoint1, a1);
+                push_vertex(endpoint2, a1);
+            }
         }
     }
 

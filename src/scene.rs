@@ -1,6 +1,6 @@
 use crate::{
     geo::{Point3f, Vector3f},
-    seam::Seam,
+    seam::{RangeInteraction, Seam},
 };
 use std::collections::HashSet;
 
@@ -74,4 +74,12 @@ pub enum SurfaceType {
 #[derive(Debug, Clone)]
 pub struct SeamInfo {
     pub seam: Seam,
+    pub segments: Vec<SeamSegment>,
+}
+
+#[derive(Debug, Clone)]
+pub struct SeamSegment {
+    pub endpoint1: [f32; 3],
+    pub endpoint2: [f32; 3],
+    pub interaction: Option<RangeInteraction>,
 }

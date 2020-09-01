@@ -12,6 +12,36 @@ pub fn step_f32(x: f32) -> f32 {
     }
 }
 
+pub fn step_f32_by(x: f32, mut amount: i32) -> f32 {
+    let mut bits = x.to_bits();
+
+    // negative to positive
+    if (bits & (1 << 31)) != 0 {
+        let to_zero = (bits & !(1 << 31)) as i32;
+        if amount > to_zero {
+            bits = 0;
+            amount -= to_zero + 1;
+        }
+    }
+
+    // positive to negative
+    if (bits & (1 << 31)) == 0 {
+        let to_zero = -(bits as i32);
+        if amount < to_zero {
+            bits = 1 << 31;
+            amount += -to_zero + 1;
+        }
+    }
+
+    if (bits & (1 << 31)) == 0 {
+        bits = (bits as i32 + amount) as u32;
+    } else {
+        bits = (bits as i32 - amount) as u32;
+    }
+
+    f32::from_bits(bits)
+}
+
 /// A closed range of float values.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RangeF32 {
@@ -40,5 +70,23 @@ impl RangeF32 {
         // Could be done more efficiently by chaining two integer ranges (negative then positive)
         let end = self.end;
         iter::successors(Some(self.start), |x| Some(step_f32(*x))).take_while(move |x| *x < end)
+    }
+
+    pub fn intersect(&self, other: &Self) -> Self {
+        RangeF32::inclusive_exclusive(self.start.max(other.start), self.end.min(other.end))
+    }
+
+    pub fn split(&self, segment_length: f32) -> impl Iterator<Item = Self> {
+        let start = self.start;
+        let end = self.end;
+
+        (0..)
+            .map(move |i| {
+                RangeF32::inclusive_exclusive(
+                    start + i as f32 * segment_length,
+                    (start + (i + 1) as f32 * segment_length).min(end),
+                )
+            })
+            .take_while(|segment| !segment.is_empty())
     }
 }

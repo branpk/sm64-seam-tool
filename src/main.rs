@@ -1,4 +1,5 @@
 use bytemuck::{cast, from_bytes};
+use float_range::{step_f32, step_f32_by};
 use game_state::{GameState, Globals};
 use imgui::{im_str, Condition, ConfigFlags, Context};
 use imgui_renderer::ImguiRenderer;
@@ -6,11 +7,12 @@ use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use process::Process;
 use read_process_memory::{copy_address, TryIntoProcessHandle};
 use renderer::Renderer;
-use scene::{Camera, RotateCamera, Scene, SeamInfo, SurfaceType, Viewport};
+use scene::{Camera, RotateCamera, Scene, SeamInfo, SeamSegment, SurfaceType, Viewport};
 use seam_processor::SeamProcessor;
 use std::{
     collections::HashSet,
     convert::TryInto,
+    iter,
     time::{Duration, Instant},
 };
 use winit::{
@@ -78,7 +80,26 @@ fn build_scene(
         seams: seam_processor
             .seams()
             .iter()
-            .map(|seam| SeamInfo { seam: seam.clone() })
+            .map(|seam| {
+                let progress = seam_processor.seam_progress(seam);
+
+                let segments = progress
+                    .complete
+                    .into_iter()
+                    .map(|(range, interaction)| (range, Some(interaction)))
+                    .chain(iter::once((progress.remaining, None)))
+                    .map(|(range, interaction)| SeamSegment {
+                        endpoint1: seam.approx_point_at_w(range.start),
+                        endpoint2: seam.approx_point_at_w(range.end),
+                        interaction,
+                    })
+                    .collect();
+
+                SeamInfo {
+                    seam: seam.clone(),
+                    segments,
+                }
+            })
             .collect(),
     }
 }
@@ -91,7 +112,7 @@ fn main() {
 
         let event_loop = EventLoop::new();
         let window = WindowBuilder::new()
-            .with_title("")
+            .with_title("seams legit 2.0")
             .with_inner_size(PhysicalSize::new(800, 600))
             .build(&event_loop)
             .unwrap();

@@ -1,3 +1,5 @@
+use crate::float_range::RangeF32;
+
 /// The axis along which a wall projects.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ProjectionAxis {
@@ -98,6 +100,29 @@ impl Edge {
             vertex1: ProjectedPoint::project(vertices.0, projection_axis),
             vertex2: ProjectedPoint::project(vertices.1, projection_axis),
         }
+    }
+
+    pub fn is_vertical(&self) -> bool {
+        self.vertex1.w == self.vertex2.w
+    }
+
+    pub fn w_range(&self) -> RangeF32 {
+        let w1 = self.vertex1.w as f32;
+        let w2 = self.vertex2.w as f32;
+        RangeF32::inclusive(w1.min(w2), w1.max(w2))
+    }
+
+    pub fn approx_t(&self, w: f32) -> f32 {
+        let w1 = self.vertex1.w as f32;
+        let w2 = self.vertex2.w as f32;
+        assert_ne!(w1, w2);
+        (w - w1) / (w2 - w1)
+    }
+
+    pub fn approx_y(&self, w: f32) -> f32 {
+        let y1 = self.vertex1.y as f32;
+        let y2 = self.vertex2.y as f32;
+        y1 + self.approx_t(w) * (y2 - y1)
     }
 
     /// Return true if the given point lies on the inside of the edge.
