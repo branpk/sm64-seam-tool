@@ -80,7 +80,7 @@ impl<T: Clone> ProjectedPoint<T> {
 /// An edge of a wall.
 ///
 /// `vertex1`, `vertex2` should be listed in CCW order (i.e. match the game's order).
-#[derive(Debug, Clone, Copy, PartialEq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Edge {
     pub projection_axis: ProjectionAxis,
     pub vertex1: ProjectedPoint<i16>,

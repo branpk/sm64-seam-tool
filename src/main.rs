@@ -16,6 +16,7 @@ use winit::{
 };
 
 mod edge;
+mod float_range;
 mod game_state;
 mod geo;
 mod imgui_renderer;
