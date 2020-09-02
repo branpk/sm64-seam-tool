@@ -5,6 +5,7 @@ use crate::{
     spatial_partition::SpatialPartition,
 };
 use itertools::Itertools;
+use rayon::prelude::*;
 use std::{
     collections::{HashMap, VecDeque},
     iter,
@@ -15,10 +16,9 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use thread::JoinHandle;
 
 const MAX_SEGMENT_SIZE: i32 = 100_000;
-const MAX_SEGMENT_LENGTH: f32 = 10.0;
+const MAX_SEGMENT_LENGTH: f32 = 5.0;
 
 #[derive(Debug, Clone)]
 pub struct SeamProgress {
@@ -149,6 +149,9 @@ impl SeamProcessor {
 
         {
             let mut queue = self.queue.lock().unwrap();
+
+            queue.retain(|seam| self.active_seams.contains(seam));
+
             if queue.is_empty() {
                 for seam in &self.active_seams {
                     if !self.progress.contains_key(seam) {
@@ -188,17 +191,20 @@ fn processor_thread(queue: Arc<Mutex<VecDeque<Seam>>>, output: Sender<(Seam, Sea
         if let Some(seam) = head {
             let mut progress = SeamProgress::new(seam.w_range());
 
-            let mut last_send_time = Instant::now();
-            while let Some(range) = progress.take_next_segment() {
-                progress.complete_segment(range, seam.check_range(range));
-
-                if last_send_time.elapsed() > Duration::from_millis(16) {
-                    last_send_time = Instant::now();
-                    let _ = output.send((seam.clone(), progress.clone()));
-                }
+            let mut segments = Vec::new();
+            while let Some(segment) = progress.take_next_segment() {
+                segments.push(segment);
             }
 
-            let _ = output.send((seam, progress));
+            let segment_statuses: Vec<(RangeF32, RangeStatus)> = segments
+                .into_par_iter()
+                .map(|segment| (segment, seam.check_range(segment)))
+                .collect();
+
+            for (segment, status) in segment_statuses {
+                progress.complete_segment(segment, status);
+                let _ = output.send((seam.clone(), progress.clone()));
+            }
         }
     }
 }
