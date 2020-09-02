@@ -1,6 +1,8 @@
 use bytemuck::{cast, from_bytes};
+use edge::Edge;
 use float_range::{step_f32, step_f32_by};
 use game_state::{GameState, Globals};
+use geo::{direction_to_pitch_yaw, pitch_yaw_to_direction, Point3f, Vector3f};
 use imgui::{im_str, Condition, ConfigFlags, Context};
 use imgui_renderer::ImguiRenderer;
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
@@ -8,10 +10,12 @@ use process::Process;
 use read_process_memory::{copy_address, TryIntoProcessHandle};
 use renderer::Renderer;
 use scene::{Camera, RotateCamera, Scene, SeamInfo, SeamSegment, SurfaceType, Viewport};
+use seam::Seam;
 use seam_processor::SeamProcessor;
 use std::{
     collections::HashSet,
     convert::TryInto,
+    f32::consts::PI,
     iter,
     time::{Duration, Instant},
 };
@@ -38,6 +42,7 @@ fn build_scene(
     viewport: Viewport,
     game_state: &GameState,
     seam_processor: &SeamProcessor,
+    hovered_seam: Option<Seam>,
 ) -> Scene {
     Scene {
         viewport,
@@ -98,7 +103,109 @@ fn build_scene(
                 }
             })
             .collect(),
+        hovered_seam,
     }
+}
+
+fn get_mouse_ray(
+    mouse_pos: [f32; 2],
+    window_pos: [f32; 2],
+    window_size: [f32; 2],
+    camera: &RotateCamera,
+) -> Option<(Point3f, Vector3f)> {
+    let rel_mouse_pos = (
+        mouse_pos[0] - window_pos[0],
+        window_size[1] - mouse_pos[1] + window_pos[1],
+    );
+    let norm_mouse_pos = (
+        2.0 * rel_mouse_pos.0 / window_size[0] - 1.0,
+        2.0 * rel_mouse_pos.1 / window_size[1] - 1.0,
+    );
+    if norm_mouse_pos.0.abs() > 1.0 || norm_mouse_pos.1.abs() > 1.0 {
+        return None;
+    }
+
+    let forward_dir = (camera.target() - camera.pos()).normalize();
+    let (pitch, yaw) = direction_to_pitch_yaw(&forward_dir);
+    let up_dir = pitch_yaw_to_direction(pitch + PI / 2.0, yaw);
+    let right_dir = pitch_yaw_to_direction(0.0, yaw - PI / 2.0);
+
+    let top = (camera.fov_y / 2.0).tan();
+    let right = top * window_size[0] / window_size[1];
+
+    let mouse_dir =
+        (forward_dir + top * norm_mouse_pos.1 * up_dir + right * norm_mouse_pos.0 * right_dir)
+            .normalize();
+
+    Some((camera.pos(), mouse_dir))
+}
+
+fn ray_surface_intersection(
+    state: &GameState,
+    ray: (Point3f, Vector3f),
+) -> Option<(usize, Point3f)> {
+    let mut nearest: Option<(f32, (usize, Point3f))> = None;
+
+    for (i, surface) in state.surfaces.iter().enumerate() {
+        let normal = surface.normal();
+        let vertices = surface.vertices();
+
+        let t = -normal.dot(&(ray.0 - vertices[0])) / normal.dot(&ray.1);
+        if t <= 0.0 {
+            continue;
+        }
+
+        let p = ray.0 + t * ray.1;
+
+        let mut interior = true;
+        for k in 0..3 {
+            let edge = vertices[(k + 1) % 3] - vertices[k];
+            if normal.dot(&edge.cross(&(p - vertices[k]))) < 0.0 {
+                interior = false;
+                break;
+            }
+        }
+        if !interior {
+            continue;
+        }
+
+        if nearest.is_none() || t < nearest.unwrap().0 {
+            nearest = Some((t, (i, p)));
+        }
+    }
+
+    nearest.map(|(_, result)| result)
+}
+
+fn find_hovered_seam(
+    state: &GameState,
+    active_seams: &[Seam],
+    mouse_ray: (Point3f, Vector3f),
+) -> Option<Seam> {
+    let (surface_index, point) = ray_surface_intersection(state, mouse_ray)?;
+    let surface = &state.surfaces[surface_index];
+    let vertices = [surface.vertex1, surface.vertex2, surface.vertex3];
+
+    let mut nearest_edge: Option<(f32, Edge)> = None;
+    for k in 0..3 {
+        let fvertex1 = surface.vertices()[k];
+        let fvertex2 = surface.vertices()[(k + 1) % 3];
+        let edge_dir = (fvertex2 - fvertex1).normalize();
+        let inward_dir = surface.normal().cross(&edge_dir);
+        let distance = inward_dir.dot(&(point - fvertex1)).abs();
+
+        if nearest_edge.is_none() || distance < nearest_edge.unwrap().0 {
+            let edge = Edge::new((vertices[k], vertices[(k + 1) % 3]), surface.normal);
+            nearest_edge = Some((distance, edge));
+        }
+    }
+
+    let (_, edge) = nearest_edge?;
+    active_seams
+        .iter()
+        .filter(|seam| seam.edge1 == edge || seam.edge2 == edge)
+        .cloned()
+        .next()
 }
 
 fn main() {
@@ -157,6 +264,7 @@ fn main() {
 
         let mut renderer = Renderer::new(&device, swap_chain_desc.format);
         let mut seam_processor = SeamProcessor::new();
+        let mut hovered_seam: Option<Seam> = None;
 
         let mut last_fps_time = Instant::now();
         let mut frames_since_fps = 0;
@@ -200,7 +308,11 @@ fn main() {
                             width: imgui.io().display_size[0],
                             height: imgui.io().display_size[1],
                         };
-                        let scene = build_scene(viewport, &state, &seam_processor);
+                        let scene =
+                            build_scene(viewport, &state, &seam_processor, hovered_seam.clone());
+
+                        let mouse_pos = imgui.io().mouse_pos;
+                        let mut mouse_ray: Option<(Point3f, Vector3f)> = None;
 
                         platform
                             .prepare_frame(imgui.io_mut(), &window)
@@ -216,12 +328,25 @@ fn main() {
                             .title_bar(false)
                             .bring_to_front_on_focus(false)
                             .build(&ui, || {
+                                if let Camera::Rotate(camera) = &scene.camera {
+                                    mouse_ray = get_mouse_ray(
+                                        mouse_pos,
+                                        ui.window_pos(),
+                                        ui.window_size(),
+                                        camera,
+                                    );
+                                }
+
                                 ui.text(im_str!("{}", fps_string));
                                 ui.text(im_str!("remaining: {}", seam_processor.remaining_seams()));
                             });
 
                         platform.prepare_render(&ui, &window);
                         let draw_data = ui.render();
+
+                        hovered_seam = mouse_ray.and_then(|mouse_ray| {
+                            find_hovered_seam(&state, seam_processor.active_seams(), mouse_ray)
+                        });
 
                         let output_view = &swap_chain.get_current_frame().unwrap().output.view;
 

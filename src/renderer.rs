@@ -833,7 +833,11 @@ fn get_seam_vertices(scene: &Scene) -> Vec<Vertex> {
                 RangeStatus::Skipped => [1.0, 0.0, 0.0, 1.0],
             };
 
-            let radius = 5.0;
+            let radius = if scene.hovered_seam.as_ref() == Some(&seam.seam) {
+                10.0
+            } else {
+                5.0
+            };
             let num_sides = 10;
 
             let mut push_vertex = |endpoint: Point3f, angle: f32| {

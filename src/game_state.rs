@@ -1,4 +1,7 @@
-use crate::process::Process;
+use crate::{
+    geo::{Point3f, Vector3f},
+    process::Process,
+};
 use bytemuck::{cast_slice, from_bytes, Pod, Zeroable};
 use std::mem::size_of;
 
@@ -34,6 +37,40 @@ pub struct Surface {
     pub vertex3: [i16; 3],
     pub normal: [f32; 3],
     pub origin_offset: f32,
+}
+
+impl Surface {
+    pub fn vertex1(&self) -> Point3f {
+        Point3f::new(
+            self.vertex1[0] as f32,
+            self.vertex1[1] as f32,
+            self.vertex1[2] as f32,
+        )
+    }
+
+    pub fn vertex2(&self) -> Point3f {
+        Point3f::new(
+            self.vertex2[0] as f32,
+            self.vertex2[1] as f32,
+            self.vertex2[2] as f32,
+        )
+    }
+
+    pub fn vertex3(&self) -> Point3f {
+        Point3f::new(
+            self.vertex3[0] as f32,
+            self.vertex3[1] as f32,
+            self.vertex3[2] as f32,
+        )
+    }
+
+    pub fn vertices(&self) -> [Point3f; 3] {
+        [self.vertex1(), self.vertex2(), self.vertex3()]
+    }
+
+    pub fn normal(&self) -> Vector3f {
+        Vector3f::new(self.normal[0], self.normal[1], self.normal[2])
+    }
 }
 
 #[derive(Debug, Clone)]

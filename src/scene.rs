@@ -13,6 +13,7 @@ pub struct Scene {
     pub hovered_surface: Option<usize>,
     pub hidden_surfaces: HashSet<usize>,
     pub seams: Vec<SeamInfo>,
+    pub hovered_seam: Option<Seam>,
 }
 
 #[derive(Debug, Clone)]
@@ -34,6 +35,16 @@ pub struct RotateCamera {
     pub pos: [f32; 3],
     pub target: [f32; 3],
     pub fov_y: f32,
+}
+
+impl RotateCamera {
+    pub fn pos(&self) -> Point3f {
+        Point3f::new(self.pos[0], self.pos[1], self.pos[2])
+    }
+
+    pub fn target(&self) -> Point3f {
+        Point3f::new(self.target[0], self.target[1], self.target[2])
+    }
 }
 
 #[derive(Debug, Clone)]
