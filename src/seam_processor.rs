@@ -125,12 +125,26 @@ impl SeamProcessor {
             .iter()
             .filter(|surface| surface.normal[1].abs() <= 0.01);
 
+        let start_time = Instant::now();
+        let cutoff = Duration::from_secs_f32(1.0);
+
         let mut spatial_partition = SpatialPartition::new();
         for wall in walls {
+            if start_time.elapsed() > cutoff {
+                // Probably an invalid surface pool
+                self.active_seams.clear();
+                return;
+            }
+
             spatial_partition.insert(wall.clone());
         }
 
         for (wall1, wall2) in spatial_partition.pairs() {
+            if start_time.elapsed() > cutoff {
+                self.active_seams.clear();
+                return;
+            }
+
             let edges1 = get_edges(wall1);
             let edges2 = get_edges(wall2);
 
