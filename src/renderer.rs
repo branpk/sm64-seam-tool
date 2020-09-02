@@ -32,9 +32,9 @@ unsafe impl Pod for Vertex {}
 struct SceneBundle {
     transform_bind_group: wgpu::BindGroup,
     surface_vertex_buffer: (usize, wgpu::Buffer),
-    hidden_surface_vertex_buffer: (usize, wgpu::Buffer),
-    wall_hitbox_vertex_buffer: (usize, wgpu::Buffer),
-    wall_hitbox_outline_vertex_buffer: (usize, wgpu::Buffer),
+    // hidden_surface_vertex_buffer: (usize, wgpu::Buffer),
+    // wall_hitbox_vertex_buffer: (usize, wgpu::Buffer),
+    // wall_hitbox_outline_vertex_buffer: (usize, wgpu::Buffer),
     seam_vertex_buffer: (usize, wgpu::Buffer),
 }
 
@@ -208,33 +208,33 @@ impl Renderer {
                         usage: wgpu::BufferUsage::VERTEX,
                     }),
                 );
-                let hidden_surface_vertex_buffer = (
-                    hidden_surface_vertices.len(),
-                    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                        label: None,
-                        contents: cast_slice(&hidden_surface_vertices),
-                        usage: wgpu::BufferUsage::VERTEX,
-                    }),
-                );
+                // let hidden_surface_vertex_buffer = (
+                //     hidden_surface_vertices.len(),
+                //     device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                //         label: None,
+                //         contents: cast_slice(&hidden_surface_vertices),
+                //         usage: wgpu::BufferUsage::VERTEX,
+                //     }),
+                // );
 
-                let (wall_hitbox_vertices, wall_hitbox_outline_vertices) =
-                    get_wall_hitbox_vertices(scene);
-                let wall_hitbox_vertex_buffer = (
-                    wall_hitbox_vertices.len(),
-                    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                        label: None,
-                        contents: cast_slice(&wall_hitbox_vertices),
-                        usage: wgpu::BufferUsage::VERTEX,
-                    }),
-                );
-                let wall_hitbox_outline_vertex_buffer = (
-                    wall_hitbox_outline_vertices.len(),
-                    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                        label: None,
-                        contents: cast_slice(&wall_hitbox_outline_vertices),
-                        usage: wgpu::BufferUsage::VERTEX,
-                    }),
-                );
+                // let (wall_hitbox_vertices, wall_hitbox_outline_vertices) =
+                //     get_wall_hitbox_vertices(scene);
+                // let wall_hitbox_vertex_buffer = (
+                //     wall_hitbox_vertices.len(),
+                //     device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                //         label: None,
+                //         contents: cast_slice(&wall_hitbox_vertices),
+                //         usage: wgpu::BufferUsage::VERTEX,
+                //     }),
+                // );
+                // let wall_hitbox_outline_vertex_buffer = (
+                //     wall_hitbox_outline_vertices.len(),
+                //     device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                //         label: None,
+                //         contents: cast_slice(&wall_hitbox_outline_vertices),
+                //         usage: wgpu::BufferUsage::VERTEX,
+                //     }),
+                // );
 
                 let seam_vertices = get_seam_vertices(scene);
                 let seam_vertex_buffer = (
@@ -249,9 +249,9 @@ impl Renderer {
                 SceneBundle {
                     transform_bind_group,
                     surface_vertex_buffer,
-                    hidden_surface_vertex_buffer,
-                    wall_hitbox_vertex_buffer,
-                    wall_hitbox_outline_vertex_buffer,
+                    // hidden_surface_vertex_buffer,
+                    // wall_hitbox_vertex_buffer,
+                    // wall_hitbox_outline_vertex_buffer,
                     seam_vertex_buffer,
                 }
             })
@@ -285,7 +285,10 @@ impl Renderer {
             });
 
             for (scene, bundle) in scenes.iter().zip(&scene_bundles) {
-                let viewport = &scene.viewport;
+                let mut viewport = scene.viewport.clone();
+                viewport.width = viewport.width.min(output_size.0 as f32 - viewport.x);
+                viewport.height = viewport.height.min(output_size.1 as f32 - viewport.y);
+
                 render_pass.set_viewport(
                     viewport.x,
                     viewport.y,
@@ -311,27 +314,27 @@ impl Renderer {
                 render_pass.set_vertex_buffer(0, bundle.seam_vertex_buffer.1.slice(..));
                 render_pass.draw(0..bundle.seam_vertex_buffer.0 as u32, 0..1);
 
-                if scene.wall_hitbox_radius > 0.0 {
-                    // Render lines first since tris write to z buffer
-                    render_pass.set_pipeline(&self.wall_hitbox_outline_pipeline);
-                    render_pass
-                        .set_vertex_buffer(0, bundle.wall_hitbox_outline_vertex_buffer.1.slice(..));
-                    render_pass.draw(0..bundle.wall_hitbox_outline_vertex_buffer.0 as u32, 0..1);
+                // if scene.wall_hitbox_radius > 0.0 {
+                //     // Render lines first since tris write to z buffer
+                //     render_pass.set_pipeline(&self.wall_hitbox_outline_pipeline);
+                //     render_pass
+                //         .set_vertex_buffer(0, bundle.wall_hitbox_outline_vertex_buffer.1.slice(..));
+                //     render_pass.draw(0..bundle.wall_hitbox_outline_vertex_buffer.0 as u32, 0..1);
 
-                    // When two wall hitboxes overlap, we should not increase the opacity within
-                    // their region of overlap (preference).
-                    // First pass writes only to depth buffer to ensure that only the closest
-                    // hitbox triangles are drawn, then second pass draws them.
-                    render_pass.set_vertex_buffer(0, bundle.wall_hitbox_vertex_buffer.1.slice(..));
-                    render_pass.set_pipeline(&self.wall_hitbox_depth_pass_pipeline);
-                    render_pass.draw(0..bundle.wall_hitbox_vertex_buffer.0 as u32, 0..1);
-                    render_pass.set_pipeline(&self.wall_hitbox_pipeline);
-                    render_pass.draw(0..bundle.wall_hitbox_vertex_buffer.0 as u32, 0..1);
-                }
+                //     // When two wall hitboxes overlap, we should not increase the opacity within
+                //     // their region of overlap (preference).
+                //     // First pass writes only to depth buffer to ensure that only the closest
+                //     // hitbox triangles are drawn, then second pass draws them.
+                //     render_pass.set_vertex_buffer(0, bundle.wall_hitbox_vertex_buffer.1.slice(..));
+                //     render_pass.set_pipeline(&self.wall_hitbox_depth_pass_pipeline);
+                //     render_pass.draw(0..bundle.wall_hitbox_vertex_buffer.0 as u32, 0..1);
+                //     render_pass.set_pipeline(&self.wall_hitbox_pipeline);
+                //     render_pass.draw(0..bundle.wall_hitbox_vertex_buffer.0 as u32, 0..1);
+                // }
 
-                render_pass.set_pipeline(&self.hidden_surface_pipeline);
-                render_pass.set_vertex_buffer(0, bundle.hidden_surface_vertex_buffer.1.slice(..));
-                render_pass.draw(0..bundle.hidden_surface_vertex_buffer.0 as u32, 0..1);
+                // render_pass.set_pipeline(&self.hidden_surface_pipeline);
+                // render_pass.set_vertex_buffer(0, bundle.hidden_surface_vertex_buffer.1.slice(..));
+                // render_pass.draw(0..bundle.hidden_surface_vertex_buffer.0 as u32, 0..1);
             }
         }
 

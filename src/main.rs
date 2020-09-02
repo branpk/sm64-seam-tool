@@ -3,7 +3,7 @@ use edge::Edge;
 use float_range::{step_f32, step_f32_by};
 use game_state::{GameState, Globals};
 use geo::{direction_to_pitch_yaw, pitch_yaw_to_direction, Point3f, Vector3f};
-use imgui::{im_str, Condition, ConfigFlags, Context};
+use imgui::{im_str, Condition, ConfigFlags, Context, DrawData, MouseButton, Ui};
 use imgui_renderer::ImguiRenderer;
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use process::Process;
@@ -19,6 +19,7 @@ use std::{
     iter,
     time::{Duration, Instant},
 };
+use util::{find_hovered_seam, get_mouse_ray};
 use winit::{
     dpi::PhysicalSize,
     event::{Event, WindowEvent},
@@ -37,6 +38,77 @@ mod scene;
 mod seam;
 mod seam_processor;
 mod spatial_partition;
+mod util;
+
+struct App {
+    process: Process,
+    seam_processor: SeamProcessor,
+    hovered_seam: Option<Seam>,
+    selected_seam: Option<Seam>,
+    fps_string: String,
+}
+
+impl App {
+    fn new() -> Self {
+        App {
+            process: Process::attach(85120, 0x008EBA80),
+            seam_processor: SeamProcessor::new(),
+            hovered_seam: None,
+            selected_seam: None,
+            fps_string: String::new(),
+        }
+    }
+
+    fn render(&mut self, ui: &Ui) -> Vec<Scene> {
+        let state = GameState::read(&Globals::US, &self.process);
+        self.seam_processor.update(&state);
+
+        let mut scenes = Vec::new();
+        // imgui::ChildWindow::new("game-view")
+        //     .size([0.0, ui.window_size()[1] / 2.0])
+        //     .build(ui, || {
+        scenes.push(self.render_game_view(ui, &state));
+        // });
+
+        scenes
+    }
+
+    fn render_game_view(&mut self, ui: &Ui, state: &GameState) -> Scene {
+        let viewport = Viewport {
+            x: 0.0,
+            y: 0.0,
+            width: ui.window_size()[0],
+            height: ui.window_size()[1],
+        };
+        let scene = build_scene(
+            viewport,
+            &state,
+            &self.seam_processor,
+            self.hovered_seam.clone(),
+        );
+        if let Camera::Rotate(camera) = &scene.camera {
+            let mouse_ray =
+                get_mouse_ray(ui.io().mouse_pos, ui.window_pos(), ui.window_size(), camera);
+            self.hovered_seam = mouse_ray.and_then(|mouse_ray| {
+                find_hovered_seam(&state, self.seam_processor.active_seams(), mouse_ray)
+            });
+        }
+
+        if let Some(hovered_seam) = &self.hovered_seam {
+            if ui.is_mouse_clicked(MouseButton::Left) {
+                self.selected_seam = Some(hovered_seam.clone());
+            }
+        }
+
+        ui.text(im_str!("{}", self.fps_string));
+        ui.text(im_str!(
+            "remaining: {}",
+            self.seam_processor.remaining_seams()
+        ));
+
+        scene
+    }
+}
 
 fn build_scene(
     viewport: Viewport,
@@ -107,111 +179,8 @@ fn build_scene(
     }
 }
 
-fn get_mouse_ray(
-    mouse_pos: [f32; 2],
-    window_pos: [f32; 2],
-    window_size: [f32; 2],
-    camera: &RotateCamera,
-) -> Option<(Point3f, Vector3f)> {
-    let rel_mouse_pos = (
-        mouse_pos[0] - window_pos[0],
-        window_size[1] - mouse_pos[1] + window_pos[1],
-    );
-    let norm_mouse_pos = (
-        2.0 * rel_mouse_pos.0 / window_size[0] - 1.0,
-        2.0 * rel_mouse_pos.1 / window_size[1] - 1.0,
-    );
-    if norm_mouse_pos.0.abs() > 1.0 || norm_mouse_pos.1.abs() > 1.0 {
-        return None;
-    }
-
-    let forward_dir = (camera.target() - camera.pos()).normalize();
-    let (pitch, yaw) = direction_to_pitch_yaw(&forward_dir);
-    let up_dir = pitch_yaw_to_direction(pitch + PI / 2.0, yaw);
-    let right_dir = pitch_yaw_to_direction(0.0, yaw - PI / 2.0);
-
-    let top = (camera.fov_y / 2.0).tan();
-    let right = top * window_size[0] / window_size[1];
-
-    let mouse_dir =
-        (forward_dir + top * norm_mouse_pos.1 * up_dir + right * norm_mouse_pos.0 * right_dir)
-            .normalize();
-
-    Some((camera.pos(), mouse_dir))
-}
-
-fn ray_surface_intersection(
-    state: &GameState,
-    ray: (Point3f, Vector3f),
-) -> Option<(usize, Point3f)> {
-    let mut nearest: Option<(f32, (usize, Point3f))> = None;
-
-    for (i, surface) in state.surfaces.iter().enumerate() {
-        let normal = surface.normal();
-        let vertices = surface.vertices();
-
-        let t = -normal.dot(&(ray.0 - vertices[0])) / normal.dot(&ray.1);
-        if t <= 0.0 {
-            continue;
-        }
-
-        let p = ray.0 + t * ray.1;
-
-        let mut interior = true;
-        for k in 0..3 {
-            let edge = vertices[(k + 1) % 3] - vertices[k];
-            if normal.dot(&edge.cross(&(p - vertices[k]))) < 0.0 {
-                interior = false;
-                break;
-            }
-        }
-        if !interior {
-            continue;
-        }
-
-        if nearest.is_none() || t < nearest.unwrap().0 {
-            nearest = Some((t, (i, p)));
-        }
-    }
-
-    nearest.map(|(_, result)| result)
-}
-
-fn find_hovered_seam(
-    state: &GameState,
-    active_seams: &[Seam],
-    mouse_ray: (Point3f, Vector3f),
-) -> Option<Seam> {
-    let (surface_index, point) = ray_surface_intersection(state, mouse_ray)?;
-    let surface = &state.surfaces[surface_index];
-    let vertices = [surface.vertex1, surface.vertex2, surface.vertex3];
-
-    let mut nearest_edge: Option<(f32, Edge)> = None;
-    for k in 0..3 {
-        let fvertex1 = surface.vertices()[k];
-        let fvertex2 = surface.vertices()[(k + 1) % 3];
-        let edge_dir = (fvertex2 - fvertex1).normalize();
-        let inward_dir = surface.normal().cross(&edge_dir);
-        let distance = inward_dir.dot(&(point - fvertex1)).abs();
-
-        if nearest_edge.is_none() || distance < nearest_edge.unwrap().0 {
-            let edge = Edge::new((vertices[k], vertices[(k + 1) % 3]), surface.normal);
-            nearest_edge = Some((distance, edge));
-        }
-    }
-
-    let (_, edge) = nearest_edge?;
-    active_seams
-        .iter()
-        .filter(|seam| seam.edge1 == edge || seam.edge2 == edge)
-        .cloned()
-        .next()
-}
-
 fn main() {
     futures::executor::block_on(async {
-        let process = Process::attach(85120, 0x008EBA80);
-
         let instance = wgpu::Instance::new(wgpu::BackendBit::PRIMARY);
 
         let event_loop = EventLoop::new();
@@ -263,12 +232,10 @@ fn main() {
             ImguiRenderer::new(&mut imgui, &device, &queue, swap_chain_desc.format);
 
         let mut renderer = Renderer::new(&device, swap_chain_desc.format);
-        let mut seam_processor = SeamProcessor::new();
-        let mut hovered_seam: Option<Seam> = None;
+        let mut app = App::new();
 
         let mut last_fps_time = Instant::now();
         let mut frames_since_fps = 0;
-        let mut fps_string = String::new();
 
         let mut last_frame = Instant::now();
         event_loop.run(move |event, _, control_flow| {
@@ -277,7 +244,7 @@ fn main() {
                 let fps = frames_since_fps as f64 / elapsed.as_secs_f64();
                 let mspf = elapsed.as_millis() as f64 / frames_since_fps as f64;
 
-                fps_string = format!("{:.2} mspf = {:.1} fps", mspf, fps);
+                app.fps_string = format!("{:.2} mspf = {:.1} fps", mspf, fps);
 
                 last_fps_time = Instant::now();
                 frames_since_fps = 0;
@@ -299,28 +266,15 @@ fn main() {
                     if swap_chain_desc.width > 0 && swap_chain_desc.height > 0 {
                         last_frame = imgui.io_mut().update_delta_time(last_frame);
 
-                        let state = GameState::read(&Globals::US, &process);
-                        seam_processor.update(&state);
-
-                        let viewport = Viewport {
-                            x: 0.0,
-                            y: 0.0,
-                            width: imgui.io().display_size[0],
-                            height: imgui.io().display_size[1],
-                        };
-                        let scene =
-                            build_scene(viewport, &state, &seam_processor, hovered_seam.clone());
-
-                        let mouse_pos = imgui.io().mouse_pos;
-                        let mut mouse_ray: Option<(Point3f, Vector3f)> = None;
-
                         platform
                             .prepare_frame(imgui.io_mut(), &window)
                             .expect("Failed to prepare frame");
 
+                        let mut scenes = Vec::new();
+
                         let ui = imgui.frame();
 
-                        imgui::Window::new(im_str!("Hello world"))
+                        imgui::Window::new(im_str!("app"))
                             .position([0.0, 0.0], Condition::Always)
                             .size(ui.io().display_size, Condition::Always)
                             .save_settings(false)
@@ -328,25 +282,11 @@ fn main() {
                             .title_bar(false)
                             .bring_to_front_on_focus(false)
                             .build(&ui, || {
-                                if let Camera::Rotate(camera) = &scene.camera {
-                                    mouse_ray = get_mouse_ray(
-                                        mouse_pos,
-                                        ui.window_pos(),
-                                        ui.window_size(),
-                                        camera,
-                                    );
-                                }
-
-                                ui.text(im_str!("{}", fps_string));
-                                ui.text(im_str!("remaining: {}", seam_processor.remaining_seams()));
+                                scenes = app.render(&ui);
                             });
 
                         platform.prepare_render(&ui, &window);
                         let draw_data = ui.render();
-
-                        hovered_seam = mouse_ray.and_then(|mouse_ray| {
-                            find_hovered_seam(&state, seam_processor.active_seams(), mouse_ray)
-                        });
 
                         let output_view = &swap_chain.get_current_frame().unwrap().output.view;
 
@@ -356,7 +296,7 @@ fn main() {
                             output_view,
                             (swap_chain_desc.width, swap_chain_desc.height),
                             swap_chain_desc.format,
-                            &[scene],
+                            &scenes,
                         );
 
                         imgui_renderer.render(
