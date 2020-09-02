@@ -8,8 +8,14 @@ use itertools::Itertools;
 use std::{
     collections::{HashMap, VecDeque},
     iter,
+    sync::{
+        mpsc::{channel, Receiver, Sender},
+        Arc, Mutex,
+    },
+    thread,
     time::{Duration, Instant},
 };
+use thread::JoinHandle;
 
 const MAX_SEGMENT_SIZE: i32 = 100_000;
 const MAX_SEGMENT_LENGTH: f32 = 10.0;
@@ -83,15 +89,23 @@ impl SeamProgress {
 pub struct SeamProcessor {
     active_seams: Vec<Seam>,
     progress: HashMap<Seam, SeamProgress>,
-    queue: VecDeque<Seam>,
+    queue: Arc<Mutex<VecDeque<Seam>>>,
+    output_receiver: Receiver<(Seam, SeamProgress)>,
 }
 
 impl SeamProcessor {
     pub fn new() -> Self {
+        let queue = Arc::new(Mutex::new(VecDeque::new()));
+        let queue2 = queue.clone();
+
+        let (sender, receiver) = channel();
+        thread::spawn(move || processor_thread(Arc::clone(&queue2), sender));
+
         Self {
             active_seams: Vec::new(),
             progress: HashMap::new(),
-            queue: VecDeque::new(),
+            queue,
+            output_receiver: receiver,
         }
     }
 
@@ -133,33 +147,19 @@ impl SeamProcessor {
     pub fn update(&mut self, state: &GameState) {
         self.find_seams(state);
 
-        let active_seams = &self.active_seams;
-        self.queue.retain(|seam| active_seams.contains(seam));
-
-        if self.queue.is_empty() {
-            for seam in &self.active_seams {
-                if !self.seam_progress(seam).is_complete() {
-                    self.queue.push_back(seam.clone());
+        {
+            let mut queue = self.queue.lock().unwrap();
+            if queue.is_empty() {
+                for seam in &self.active_seams {
+                    if !self.progress.contains_key(seam) {
+                        queue.push_back(seam.clone());
+                    }
                 }
             }
         }
 
-        if let Some(seam) = self.queue.pop_front() {
-            let progress = self
-                .progress
-                .entry(seam.clone())
-                .or_insert_with(|| SeamProgress::new(seam.w_range()));
-
-            let start_time = Instant::now();
-            while start_time.elapsed() < Duration::from_millis(16) {
-                if let Some(range) = progress.take_next_segment() {
-                    progress.complete_segment(range, seam.check_range(range));
-                }
-            }
-
-            if !progress.is_complete() {
-                self.queue.push_front(seam);
-            }
+        while let Ok((seam, progress)) = self.output_receiver.try_recv() {
+            self.progress.insert(seam, progress);
         }
     }
 
@@ -179,5 +179,26 @@ impl SeamProcessor {
             .get(seam)
             .cloned()
             .unwrap_or(SeamProgress::new(seam.w_range()))
+    }
+}
+
+fn processor_thread(queue: Arc<Mutex<VecDeque<Seam>>>, output: Sender<(Seam, SeamProgress)>) {
+    loop {
+        let head = queue.lock().unwrap().pop_front();
+        if let Some(seam) = head {
+            let mut progress = SeamProgress::new(seam.w_range());
+
+            let mut last_send_time = Instant::now();
+            while let Some(range) = progress.take_next_segment() {
+                progress.complete_segment(range, seam.check_range(range));
+
+                if last_send_time.elapsed() > Duration::from_millis(16) {
+                    last_send_time = Instant::now();
+                    let _ = output.send((seam.clone(), progress.clone()));
+                }
+            }
+
+            let _ = output.send((seam, progress));
+        }
     }
 }

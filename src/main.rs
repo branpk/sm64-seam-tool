@@ -51,6 +51,7 @@ struct App {
 impl App {
     fn new() -> Self {
         App {
+            // FIXME: Set denorm setting (or handle manually)
             process: Process::attach(85120, 0x008EBA80),
             seam_processor: SeamProcessor::new(),
             hovered_seam: None,
