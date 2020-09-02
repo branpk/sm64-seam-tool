@@ -1,19 +1,23 @@
 use crate::{
-    float_range::RangeF32,
+    float_range::{step_f32_by, RangeF32},
     game_state::{GameState, Surface},
-    seam::{RangeInteraction, Seam},
+    seam::{RangeStatus, Seam},
     spatial_partition::SpatialPartition,
 };
 use itertools::Itertools;
-use std::collections::HashMap;
+use std::{
+    collections::{HashMap, VecDeque},
+    iter,
+    time::{Duration, Instant},
+};
 
-// TODO: Break up by number of points, not length of segment
-const SEGMENT_LENGTH: f32 = 10.0;
+const MAX_SEGMENT_SIZE: i32 = 100_000;
+const MAX_SEGMENT_LENGTH: f32 = 10.0;
 
 #[derive(Debug, Clone)]
 pub struct SeamProgress {
-    pub complete: Vec<(RangeF32, RangeInteraction)>,
-    pub remaining: RangeF32,
+    complete: Vec<(RangeF32, RangeStatus)>,
+    remaining: RangeF32,
 }
 
 impl SeamProgress {
@@ -24,38 +28,72 @@ impl SeamProgress {
         }
     }
 
-    fn take_next_segment(&mut self) -> Option<RangeF32> {
-        if self.remaining.is_empty() {
-            None
-        } else {
-            let split = (self.remaining.start + SEGMENT_LENGTH).min(self.remaining.end);
-            let result = RangeF32::inclusive_exclusive(self.remaining.start, split);
-            self.remaining.start = split;
-            Some(result)
-        }
+    pub fn segments(&self) -> impl Iterator<Item = (RangeF32, RangeStatus)> + '_ {
+        self.complete
+            .iter()
+            .cloned()
+            .chain(iter::once((self.remaining, RangeStatus::Unchecked)))
     }
 
-    fn complete_segment(&mut self, range: RangeF32, interaction: RangeInteraction) {
-        if let Some(prev) = self.complete.last_mut() {
-            if prev.0.end == range.start && prev.1 == interaction {
-                prev.0.end = range.end;
-                return;
-            }
+    fn is_complete(&self) -> bool {
+        self.remaining.is_empty()
+    }
+
+    fn take_next_segment(&mut self) -> Option<RangeF32> {
+        if self.remaining.is_empty() {
+            return None;
         }
-        self.complete.push((range, interaction));
+
+        if self.remaining.start >= -1.0 && self.remaining.start < 1.0 {
+            let split = 1.0f32.min(self.remaining.end);
+            let skipped_range = RangeF32::inclusive_exclusive(self.remaining.start, split);
+            self.remaining.start = split;
+            self.complete_segment(skipped_range, RangeStatus::Skipped);
+        }
+
+        if self.remaining.is_empty() {
+            return None;
+        }
+
+        let mut split = step_f32_by(self.remaining.start, MAX_SEGMENT_SIZE)
+            .min(self.remaining.start + MAX_SEGMENT_LENGTH)
+            .min(self.remaining.end);
+        if self.remaining.start < -1.0 && split > -1.0 {
+            split = -1.0;
+        }
+
+        let result = RangeF32::inclusive_exclusive(self.remaining.start, split);
+        self.remaining.start = split;
+
+        Some(result)
+    }
+
+    fn complete_segment(&mut self, range: RangeF32, status: RangeStatus) {
+        assert_ne!(status, RangeStatus::Unchecked);
+        if !range.is_empty() {
+            if let Some(prev) = self.complete.last_mut() {
+                if prev.0.end == range.start && prev.1 == status {
+                    prev.0.end = range.end;
+                    return;
+                }
+            }
+            self.complete.push((range, status));
+        }
     }
 }
 
 pub struct SeamProcessor {
-    seams: Vec<Seam>,
+    active_seams: Vec<Seam>,
     progress: HashMap<Seam, SeamProgress>,
+    queue: VecDeque<Seam>,
 }
 
 impl SeamProcessor {
     pub fn new() -> Self {
         Self {
-            seams: Vec::new(),
+            active_seams: Vec::new(),
             progress: HashMap::new(),
+            queue: VecDeque::new(),
         }
     }
 
@@ -68,7 +106,7 @@ impl SeamProcessor {
             ]
         };
 
-        self.seams.clear();
+        self.active_seams.clear();
 
         let walls = state
             .surfaces
@@ -87,7 +125,7 @@ impl SeamProcessor {
             for edge1 in &edges1 {
                 for edge2 in &edges2 {
                     if let Some(seam) = Seam::between(*edge1, wall1.normal, *edge2, wall2.normal) {
-                        self.seams.push(seam);
+                        self.active_seams.push(seam);
                     }
                 }
             }
@@ -97,21 +135,45 @@ impl SeamProcessor {
     pub fn update(&mut self, state: &GameState) {
         self.find_seams(state);
 
-        for seam in &self.seams {
+        let active_seams = &self.active_seams;
+        self.queue.retain(|seam| active_seams.contains(seam));
+
+        if self.queue.is_empty() {
+            for seam in &self.active_seams {
+                if !self.seam_progress(seam).is_complete() {
+                    self.queue.push_back(seam.clone());
+                }
+            }
+        }
+
+        if let Some(seam) = self.queue.pop_front() {
             let progress = self
                 .progress
                 .entry(seam.clone())
                 .or_insert_with(|| SeamProgress::new(seam.w_range()));
 
-            if let Some(range) = progress.take_next_segment() {
-                progress.complete_segment(range, seam.check_range(range));
-                break;
+            let start_time = Instant::now();
+            while start_time.elapsed() < Duration::from_millis(16) {
+                if let Some(range) = progress.take_next_segment() {
+                    progress.complete_segment(range, seam.check_range(range));
+                }
+            }
+
+            if !progress.is_complete() {
+                self.queue.push_front(seam);
             }
         }
     }
 
-    pub fn seams(&self) -> &[Seam] {
-        &self.seams
+    pub fn active_seams(&self) -> &[Seam] {
+        &self.active_seams
+    }
+
+    pub fn remaining_seams(&self) -> usize {
+        self.active_seams
+            .iter()
+            .filter(|seam| !self.seam_progress(seam).is_complete())
+            .count()
     }
 
     pub fn seam_progress(&self, seam: &Seam) -> SeamProgress {

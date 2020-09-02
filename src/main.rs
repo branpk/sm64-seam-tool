@@ -78,20 +78,17 @@ fn build_scene(
         hovered_surface: None,
         hidden_surfaces: HashSet::new(),
         seams: seam_processor
-            .seams()
+            .active_seams()
             .iter()
             .map(|seam| {
                 let progress = seam_processor.seam_progress(seam);
 
                 let segments = progress
-                    .complete
-                    .into_iter()
-                    .map(|(range, interaction)| (range, Some(interaction)))
-                    .chain(iter::once((progress.remaining, None)))
-                    .map(|(range, interaction)| SeamSegment {
+                    .segments()
+                    .map(|(range, status)| SeamSegment {
                         endpoint1: seam.approx_point_at_w(range.start),
                         endpoint2: seam.approx_point_at_w(range.end),
-                        interaction,
+                        status,
                     })
                     .collect();
 
@@ -106,7 +103,7 @@ fn build_scene(
 
 fn main() {
     futures::executor::block_on(async {
-        let process = Process::attach(89228, 0x008EBA80);
+        let process = Process::attach(85120, 0x008EBA80);
 
         let instance = wgpu::Instance::new(wgpu::BackendBit::PRIMARY);
 
@@ -163,6 +160,7 @@ fn main() {
 
         let mut last_fps_time = Instant::now();
         let mut frames_since_fps = 0;
+        let mut fps_string = String::new();
 
         let mut last_frame = Instant::now();
         event_loop.run(move |event, _, control_flow| {
@@ -171,7 +169,7 @@ fn main() {
                 let fps = frames_since_fps as f64 / elapsed.as_secs_f64();
                 let mspf = elapsed.as_millis() as f64 / frames_since_fps as f64;
 
-                println!("{:.2} mspf = {:.1} fps", mspf, fps);
+                fps_string = format!("{:.2} mspf = {:.1} fps", mspf, fps);
 
                 last_fps_time = Instant::now();
                 frames_since_fps = 0;
@@ -217,7 +215,10 @@ fn main() {
                             .resizable(false)
                             .title_bar(false)
                             .bring_to_front_on_focus(false)
-                            .build(&ui, || {});
+                            .build(&ui, || {
+                                ui.text(im_str!("{}", fps_string));
+                                ui.text(im_str!("remaining: {}", seam_processor.remaining_seams()));
+                            });
 
                         platform.prepare_render(&ui, &window);
                         let draw_data = ui.render();

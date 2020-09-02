@@ -1,6 +1,6 @@
 use crate::{
     geo::{Point3f, Vector3f},
-    seam::{RangeInteraction, Seam},
+    seam::{RangeStatus, Seam},
 };
 use std::collections::HashSet;
 
@@ -81,5 +81,5 @@ pub struct SeamInfo {
 pub struct SeamSegment {
     pub endpoint1: [f32; 3],
     pub endpoint2: [f32; 3],
-    pub interaction: Option<RangeInteraction>,
+    pub status: RangeStatus,
 }

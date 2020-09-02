@@ -1,19 +1,20 @@
 use crate::{
-    edge::{Edge, ProjectedPoint, ProjectionAxis},
+    edge::{Edge, ProjectedPoint},
     float_range::{step_f32_by, RangeF32},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum PointInteraction {
+pub enum PointStatus {
     Gap,
     Overlap,
     None,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub struct RangeInteraction {
-    pub has_gap: bool,
-    pub has_overlap: bool,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum RangeStatus {
+    Checked { has_gap: bool, has_overlap: bool },
+    Unchecked,
+    Skipped,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -62,7 +63,7 @@ impl Seam {
         self.edge1.w_range().intersect(&self.edge2.w_range())
     }
 
-    pub fn check_point(&self, w: f32) -> PointInteraction {
+    pub fn check_point(&self, w: f32) -> PointStatus {
         let y0 = self.edge1.approx_y(w);
 
         // TODO: Verify that we go far enough to be within each wall separately
@@ -75,35 +76,32 @@ impl Seam {
             let in2 = self.edge2.accepts_projected(point);
 
             if in1 && in2 {
-                return PointInteraction::Overlap;
+                return PointStatus::Overlap;
             }
             if !in1 && !in2 {
-                return PointInteraction::Gap;
+                return PointStatus::Gap;
             }
         }
 
-        PointInteraction::None
+        PointStatus::None
     }
 
-    pub fn check_range(&self, w_range: RangeF32) -> RangeInteraction {
-        let mut interaction = RangeInteraction::default();
-
-        // TODO: Remove
-        if !w_range
-            .intersect(&RangeF32::inclusive(-10.0, 10.0))
-            .is_empty()
-        {
-            return interaction;
-        }
+    pub fn check_range(&self, w_range: RangeF32) -> RangeStatus {
+        let mut has_gap = false;
+        let mut has_overlap = false;
 
         for w in w_range.iter() {
             match self.check_point(w) {
-                PointInteraction::Gap => interaction.has_gap = true,
-                PointInteraction::Overlap => interaction.has_overlap = true,
-                PointInteraction::None => {}
+                PointStatus::Gap => has_gap = true,
+                PointStatus::Overlap => has_overlap = true,
+                PointStatus::None => {}
             }
         }
-        interaction
+
+        RangeStatus::Checked {
+            has_gap,
+            has_overlap,
+        }
     }
 
     pub fn approx_point_at_w(&self, w: f32) -> [f32; 3] {

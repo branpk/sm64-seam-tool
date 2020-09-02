@@ -1,6 +1,7 @@
 use crate::{
     geo::{direction_to_pitch_yaw, Matrix4f, Point3f, Vector3f, Vector4f},
     scene::{BirdsEyeCamera, Camera, RotateCamera, Scene, SurfaceType},
+    seam::RangeStatus,
 };
 use bytemuck::{cast_slice, offset_of, Pod, Zeroable};
 use nalgebra::distance;
@@ -811,17 +812,25 @@ fn get_seam_vertices(scene: &Scene) -> Vec<Vertex> {
             let perp_dir_1 = Vector3f::y().cross(&seam_dir);
             let perp_dir_2 = seam_dir.cross(&perp_dir_1);
 
-            let color = match segment.interaction {
-                Some(interaction) => {
-                    if interaction.has_gap {
-                        [0.0, 1.0, 0.0, 1.0]
-                    } else if interaction.has_overlap {
-                        [0.0, 0.0, 1.0, 1.0]
-                    } else {
-                        [0.0, 0.0, 0.0, 1.0]
-                    }
-                }
-                None => [0.1, 0.1, 0.1, 1.0],
+            let color = match segment.status {
+                RangeStatus::Checked {
+                    has_gap: false,
+                    has_overlap: false,
+                } => [1.0, 1.0, 1.0, 1.0],
+                RangeStatus::Checked {
+                    has_gap: true,
+                    has_overlap: false,
+                } => [0.0, 1.0, 0.0, 1.0],
+                RangeStatus::Checked {
+                    has_gap: false,
+                    has_overlap: true,
+                } => [0.0, 0.0, 1.0, 1.0],
+                RangeStatus::Checked {
+                    has_gap: true,
+                    has_overlap: true,
+                } => [0.0, 1.0, 1.0, 1.0],
+                RangeStatus::Unchecked => [0.1, 0.1, 0.1, 1.0],
+                RangeStatus::Skipped => [1.0, 0.0, 0.0, 1.0],
             };
 
             let radius = 5.0;
