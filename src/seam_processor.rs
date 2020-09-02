@@ -55,9 +55,7 @@ impl SeamProgress {
             return None;
         }
 
-        let mut split = step_f32_by(self.remaining.start, MAX_SEGMENT_SIZE)
-            .min(self.remaining.start + MAX_SEGMENT_LENGTH)
-            .min(self.remaining.end);
+        let mut split = (self.remaining.start + MAX_SEGMENT_LENGTH).min(self.remaining.end);
         if self.remaining.start < -1.0 && split > -1.0 {
             split = -1.0;
         }

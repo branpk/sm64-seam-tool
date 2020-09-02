@@ -63,12 +63,30 @@ impl App {
         let state = GameState::read(&Globals::US, &self.process);
         self.seam_processor.update(&state);
 
+        let game_view_height = if self.selected_seam.is_some() {
+            ui.window_size()[1] / 2.0
+        } else {
+            ui.window_size()[1]
+        };
+
         let mut scenes = Vec::new();
-        // imgui::ChildWindow::new("game-view")
-        //     .size([0.0, ui.window_size()[1] / 2.0])
-        //     .build(ui, || {
-        scenes.push(self.render_game_view(ui, &state));
-        // });
+        imgui::ChildWindow::new("game-view")
+            .size([ui.window_size()[0], game_view_height])
+            .build(ui, || {
+                scenes.push(self.render_game_view(ui, &state));
+            });
+
+        if let Some(seam) = self.selected_seam.clone() {
+            imgui::ChildWindow::new("seam-info")
+                .size([ui.window_size()[0], ui.window_size()[1] / 2.0])
+                .build(ui, || {
+                    ui.text(im_str!("Seam: {:?}", seam));
+
+                    if ui.button(im_str!("Close"), [0.0, 0.0]) {
+                        self.selected_seam = None;
+                    }
+                });
+        }
 
         scenes
     }
@@ -280,6 +298,7 @@ fn main() {
                             .save_settings(false)
                             .resizable(false)
                             .title_bar(false)
+                            .scroll_bar(false)
                             .bring_to_front_on_focus(false)
                             .build(&ui, || {
                                 scenes = app.render(&ui);
