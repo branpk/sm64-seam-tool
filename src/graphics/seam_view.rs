@@ -3,7 +3,7 @@ use super::{
     util::{birds_eye_transforms, seam_segment_color, seam_transforms},
     SeamInfo, SeamViewScene, Vertex,
 };
-use crate::geo::Point3f;
+use crate::geo::{Matrix4f, Point3f, Vector3f};
 use bytemuck::cast_slice;
 use wgpu::util::DeviceExt;
 
@@ -53,7 +53,7 @@ impl<'a> SeamViewSceneBundle<'a> {
             ],
         });
 
-        let seam_vertices = get_seam_vertices(&scene.seam);
+        let seam_vertices = get_seam_vertices(&scene.seam, &proj_matrix);
         let seam_vertex_buffer = (
             seam_vertices.len(),
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -103,31 +103,34 @@ impl<'a> SeamViewSceneBundle<'a> {
     }
 }
 
-fn get_seam_vertices(seam_info: &SeamInfo) -> Vec<Vertex> {
-    let seam = &seam_info.seam;
-    let endpoint1 = Point3f::new(
-        seam.endpoints.0[0] as f32,
-        seam.endpoints.0[1] as f32,
-        seam.endpoints.0[2] as f32,
-    );
-    let endpoint2 = Point3f::new(
-        seam.endpoints.1[0] as f32,
-        seam.endpoints.1[1] as f32,
-        seam.endpoints.1[2] as f32,
-    );
+fn get_seam_vertices(seam_info: &SeamInfo, proj_matrix: &Matrix4f) -> Vec<Vertex> {
+    let mut vertices = Vec::new();
 
-    vec![
-        Vertex {
-            pos: [endpoint1.x, endpoint1.y, endpoint1.z],
-            color: [1.0, 1.0, 1.0, 1.0],
-        },
-        Vertex {
-            pos: [endpoint2.x, endpoint2.y, endpoint2.z],
-            color: [1.0, 1.0, 1.0, 1.0],
-        },
-        Vertex {
-            pos: [endpoint1.x, endpoint1.y + 100.0, endpoint1.z],
-            color: [1.0, 1.0, 1.0, 1.0],
-        },
-    ]
+    let slope = seam_info.seam.edge1.slope();
+    let thickness = 0.03 * (slope * slope + 1.0).sqrt();
+    let screen_thickness_offset = thickness * Vector3f::y();
+    let thickness_offset = proj_matrix
+        .pseudo_inverse(0.0)
+        .unwrap_or(nalgebra::zero())
+        .transform_vector(&screen_thickness_offset);
+
+    for segment in &seam_info.segments {
+        let color = seam_segment_color(segment.status);
+
+        let endpoint1 = segment.endpoint1();
+        let endpoint2 = segment.endpoint2();
+
+        vertices.extend_from_slice(&[
+            Vertex::new(endpoint1 - thickness_offset, color),
+            Vertex::new(endpoint2 - thickness_offset, color),
+            Vertex::new(endpoint1 + thickness_offset, color),
+        ]);
+        vertices.extend_from_slice(&[
+            Vertex::new(endpoint2 - thickness_offset, color),
+            Vertex::new(endpoint1 + thickness_offset, color),
+            Vertex::new(endpoint2 + thickness_offset, color),
+        ]);
+    }
+
+    vertices
 }

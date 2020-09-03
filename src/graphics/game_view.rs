@@ -340,16 +340,8 @@ fn get_seam_vertices(scene: &GameViewScene) -> Vec<Vertex> {
 
     for seam in &scene.seams {
         for segment in &seam.segments {
-            let endpoint1 = Point3f::new(
-                segment.endpoint1[0],
-                segment.endpoint1[1],
-                segment.endpoint1[2],
-            );
-            let endpoint2 = Point3f::new(
-                segment.endpoint2[0],
-                segment.endpoint2[1],
-                segment.endpoint2[2],
-            );
+            let endpoint1 = segment.endpoint1();
+            let endpoint2 = segment.endpoint2();
 
             let seam_dir = (endpoint2 - endpoint1).normalize();
             let perp_dir_1 = Vector3f::y().cross(&seam_dir);

@@ -110,3 +110,13 @@ pub struct SeamSegment {
     pub proj_endpoint2: ProjectedPoint<f32>,
     pub status: RangeStatus,
 }
+
+impl SeamSegment {
+    pub fn endpoint1(&self) -> Point3f {
+        Point3f::new(self.endpoint1[0], self.endpoint1[1], self.endpoint1[2])
+    }
+
+    pub fn endpoint2(&self) -> Point3f {
+        Point3f::new(self.endpoint2[0], self.endpoint2[1], self.endpoint2[2])
+    }
+}

@@ -131,6 +131,10 @@ impl Edge {
         y1 + self.approx_t(w) * (y2 - y1)
     }
 
+    pub fn slope(&self) -> f32 {
+        (self.vertex2.y - self.vertex1.y) as f32 / (self.vertex2.w - self.vertex1.w) as f32
+    }
+
     /// Return true if the given point lies on the inside of the edge.
     ///
     /// A point is inside a wall iff all three of the wall's edges accept the point.
