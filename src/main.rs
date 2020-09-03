@@ -21,7 +21,9 @@ use std::{
     iter,
     time::{Duration, Instant},
 };
-use util::{find_hovered_seam, get_mouse_ray, get_norm_mouse_pos};
+use util::{
+    build_game_view_scene, find_hovered_seam, get_mouse_ray, get_norm_mouse_pos, get_segment_info,
+};
 use winit::{
     dpi::PhysicalSize,
     event::{Event, WindowEvent},
@@ -45,8 +47,12 @@ struct App {
     globals: Globals,
     seam_processor: SeamProcessor,
     hovered_seam: Option<Seam>,
-    selected_seam: Option<Seam>,
+    seam_view: Option<SeamViewState>,
     fps_string: String,
+}
+
+struct SeamViewState {
+    seam: Seam,
 }
 
 impl App {
@@ -57,7 +63,7 @@ impl App {
             globals: Globals::US,
             seam_processor: SeamProcessor::new(),
             hovered_seam: None,
-            selected_seam: None,
+            seam_view: None,
             fps_string: String::new(),
         }
     }
@@ -84,7 +90,7 @@ impl App {
         imgui::ChildWindow::new("game-view")
             .size([
                 0.0,
-                if self.selected_seam.is_some() {
+                if self.seam_view.is_some() {
                     ui.window_size()[1] / 2.0
                 } else {
                     0.0
@@ -94,9 +100,9 @@ impl App {
                 scenes.push(Scene::GameView(self.render_game_view(ui, &state)));
             });
 
-        if let Some(seam) = self.selected_seam.clone() {
+        if self.seam_view.is_some() {
             imgui::ChildWindow::new("seam-info").build(ui, || {
-                scenes.push(Scene::SeamView(self.render_seam_view(ui, &seam)));
+                scenes.push(Scene::SeamView(self.render_seam_view(ui)));
             });
         }
 
@@ -126,7 +132,9 @@ impl App {
 
         if let Some(hovered_seam) = &self.hovered_seam {
             if ui.is_mouse_clicked(MouseButton::Left) {
-                self.selected_seam = Some(hovered_seam.clone());
+                self.seam_view = Some(SeamViewState {
+                    seam: hovered_seam.clone(),
+                });
             }
         }
 
@@ -139,7 +147,10 @@ impl App {
         scene
     }
 
-    fn render_seam_view(&mut self, ui: &Ui, seam: &Seam) -> SeamViewScene {
+    fn render_seam_view(&mut self, ui: &Ui) -> SeamViewScene {
+        let seam_view = self.seam_view.as_ref().unwrap();
+        let seam = &seam_view.seam;
+
         let viewport = Viewport {
             x: ui.window_pos()[0],
             y: ui.window_pos()[1],
@@ -156,13 +167,12 @@ impl App {
             Orientation::Negative => w_axis,
         };
 
-        let camera_pos = seam.endpoint1(); //seam.endpoint1() + (seam.endpoint2() - seam.endpoint1()) / 2.0;
+        let camera_pos = seam.endpoint1() + (seam.endpoint2() - seam.endpoint1()) / 2.0;
 
-        // let w_range = seam.edge1.w_range();
-        // let y_range = seam.edge1.y_range();
-        // let span_y = (y_range.end - y_range.start + 50.0)
-        //     .max((w_range.end - w_range.start + 50.0) * viewport.height / viewport.width);
-        let span_y: f64 = 0.000005;
+        let w_range = seam.edge1.w_range();
+        let y_range = seam.edge1.y_range();
+        let span_y = (y_range.end - y_range.start + 50.0)
+            .max((w_range.end - w_range.start + 50.0) * viewport.height / viewport.width);
 
         let camera = SeamViewCamera {
             pos: Point3::new(
@@ -196,7 +206,7 @@ impl App {
         };
 
         if ui.button(im_str!("Close"), [0.0, 0.0]) {
-            self.selected_seam = None;
+            self.seam_view = None;
         }
         // if let Some((mouse_x, mouse_y)) = screen_mouse_pos {
         //     let mouse_pos = screen_to_world.transform_point(&Point3f::new(mouse_x, mouse_y, 0.0));
@@ -211,90 +221,6 @@ impl App {
         // }
 
         scene
-    }
-}
-
-fn build_game_view_scene(
-    viewport: Viewport,
-    game_state: &GameState,
-    seam_processor: &SeamProcessor,
-    hovered_seam: Option<Seam>,
-) -> GameViewScene {
-    GameViewScene {
-        viewport,
-        camera: Camera::Rotate(RotateCamera {
-            pos: game_state.lakitu_pos,
-            target: game_state.lakitu_focus,
-            fov_y: 45.0,
-        }),
-        surfaces: game_state
-            .surfaces
-            .iter()
-            .map(|surface| {
-                let ty = if surface.normal[1] > 0.01 {
-                    SurfaceType::Floor
-                } else if surface.normal[1] < -0.01 {
-                    SurfaceType::Ceiling
-                } else if surface.normal[0] < -0.707 || surface.normal[0] > 0.707 {
-                    SurfaceType::WallXProj
-                } else {
-                    SurfaceType::WallZProj
-                };
-
-                let to_f32_3 =
-                    |vertex: [i16; 3]| [vertex[0] as f32, vertex[1] as f32, vertex[2] as f32];
-
-                graphics::Surface {
-                    ty,
-                    vertices: [
-                        to_f32_3(surface.vertex1),
-                        to_f32_3(surface.vertex2),
-                        to_f32_3(surface.vertex3),
-                    ],
-                    normal: surface.normal,
-                }
-            })
-            .collect(),
-        wall_hitbox_radius: 0.0,
-        hovered_surface: None,
-        hidden_surfaces: HashSet::new(),
-        seams: seam_processor
-            .active_seams()
-            .iter()
-            .map(|seam| {
-                let progress = seam_processor.seam_progress(seam);
-                get_segment_info(seam, &progress)
-            })
-            .collect(),
-        hovered_seam,
-    }
-}
-
-fn get_segment_info(seam: &Seam, progress: &SeamProgress) -> SeamInfo {
-    let segments = progress
-        .segments()
-        .map(|(range, status)| {
-            let endpoint1 = seam.approx_point_at_w(range.start);
-            let endpoint2 = seam.approx_point_at_w(range.end);
-            SeamSegment {
-                endpoint1,
-                endpoint2,
-                proj_endpoint1: ProjectedPoint {
-                    w: range.start,
-                    y: endpoint1[1],
-                },
-                proj_endpoint2: ProjectedPoint {
-                    w: range.end,
-                    y: endpoint2[1],
-                },
-                status,
-            }
-        })
-        .collect();
-
-    SeamInfo {
-        seam: seam.clone(),
-        segments,
     }
 }
 
