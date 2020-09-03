@@ -42,6 +42,7 @@ mod util;
 
 struct App {
     process: Process,
+    globals: Globals,
     seam_processor: SeamProcessor,
     hovered_seam: Option<Seam>,
     selected_seam: Option<Seam>,
@@ -52,7 +53,8 @@ impl App {
     fn new() -> Self {
         App {
             // FIXME: Set denorm setting (or handle manually)
-            process: Process::attach(85120, 0x008EBA80),
+            process: Process::attach(94400, 0x008EBA80),
+            globals: Globals::US,
             seam_processor: SeamProcessor::new(),
             hovered_seam: None,
             selected_seam: None,
@@ -60,8 +62,21 @@ impl App {
         }
     }
 
+    fn sync_to_game(&self) {
+        let initial_global_timer: u32 = self.process.read(self.globals.global_timer);
+        let start_time = Instant::now();
+        while start_time.elapsed() < Duration::from_millis(50) {
+            let global_timer: u32 = self.process.read(self.globals.global_timer);
+            if global_timer != initial_global_timer {
+                break;
+            }
+        }
+    }
+
     fn render(&mut self, ui: &Ui) -> Vec<Scene> {
-        let state = GameState::read(&Globals::US, &self.process);
+        self.sync_to_game();
+
+        let state = GameState::read(&self.globals, &self.process);
         self.seam_processor.update(&state);
 
         let game_view_height = if self.selected_seam.is_some() {

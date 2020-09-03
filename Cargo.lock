@@ -110,6 +110,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4785bdd1c96b2a846b2bd7cc02e86b6b3dbf14e7e53446c4f54c92a361040822"
 
 [[package]]
+name = "cfg_aliases"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f6da2b592f5a2e590c3d94c44313bab369f2286cfe1e4134c830bf3317814866"
+
+[[package]]
 name = "cloudabi"
 version = "0.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1812,7 +1818,7 @@ dependencies = [
 [[package]]
 name = "wgpu"
 version = "0.6.0"
-source = "git+https://github.com/gfx-rs/wgpu-rs.git#cfe938dbd633eca13f3f1c915b934507b5a1ac9d"
+source = "git+https://github.com/gfx-rs/wgpu-rs.git#1f7716e22ef700508795c4a7e65b4e57da6dfddb"
 dependencies = [
  "arrayvec",
  "futures",
@@ -1834,10 +1840,11 @@ dependencies = [
 [[package]]
 name = "wgpu-core"
 version = "0.6.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=bba82724a84e22dd23cd341a06be6909a3511370#bba82724a84e22dd23cd341a06be6909a3511370"
+source = "git+https://github.com/gfx-rs/wgpu?rev=bbb9b84bd2bcfe2b55fe03704ba30c242cb0e768#bbb9b84bd2bcfe2b55fe03704ba30c242cb0e768"
 dependencies = [
  "arrayvec",
  "bitflags",
+ "cfg_aliases",
  "copyless",
  "fxhash",
  "gfx-backend-dx11",
@@ -1860,7 +1867,7 @@ dependencies = [
 [[package]]
 name = "wgpu-types"
 version = "0.6.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=bba82724a84e22dd23cd341a06be6909a3511370#bba82724a84e22dd23cd341a06be6909a3511370"
+source = "git+https://github.com/gfx-rs/wgpu?rev=bbb9b84bd2bcfe2b55fe03704ba30c242cb0e768#bbb9b84bd2bcfe2b55fe03704ba30c242cb0e768"
 dependencies = [
  "bitflags",
 ]
