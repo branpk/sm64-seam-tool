@@ -13,20 +13,15 @@ pub fn get_norm_mouse_pos(
     mouse_pos: [f32; 2],
     window_pos: [f32; 2],
     window_size: [f32; 2],
-) -> Option<(f32, f32)> {
+) -> (f32, f32) {
     let rel_mouse_pos = (
         mouse_pos[0] - window_pos[0],
         window_size[1] - mouse_pos[1] + window_pos[1],
     );
-    let norm_mouse_pos = (
+    (
         2.0 * rel_mouse_pos.0 / window_size[0] - 1.0,
         2.0 * rel_mouse_pos.1 / window_size[1] - 1.0,
-    );
-    if norm_mouse_pos.0.abs() > 1.0 || norm_mouse_pos.1.abs() > 1.0 {
-        None
-    } else {
-        Some(norm_mouse_pos)
-    }
+    )
 }
 
 pub fn get_mouse_ray(
@@ -35,7 +30,10 @@ pub fn get_mouse_ray(
     window_size: [f32; 2],
     camera: &RotateCamera,
 ) -> Option<(Point3f, Vector3f)> {
-    let norm_mouse_pos = get_norm_mouse_pos(mouse_pos, window_pos, window_size)?;
+    let norm_mouse_pos = get_norm_mouse_pos(mouse_pos, window_pos, window_size);
+    if norm_mouse_pos.0.abs() > 1.0 || norm_mouse_pos.1.abs() > 1.0 {
+        return None;
+    }
 
     let forward_dir = (camera.target() - camera.pos()).normalize();
     let (pitch, yaw) = direction_to_pitch_yaw(&forward_dir);

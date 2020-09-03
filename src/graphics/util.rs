@@ -4,7 +4,7 @@ use crate::{
     geo::{direction_to_pitch_yaw, Matrix4f, Point3f, Vector3f, Vector4f},
     seam::RangeStatus,
 };
-use nalgebra::{distance, Point3};
+use nalgebra::{distance, Point3, Vector3};
 use std::f32::consts::PI;
 
 pub fn rotate_transforms(camera: &RotateCamera, viewport: &Viewport) -> (Matrix4f, Matrix4f) {
@@ -50,16 +50,26 @@ pub fn birds_eye_transforms(camera: &BirdsEyeCamera, viewport: &Viewport) -> (Ma
 pub fn seam_view_world_to_screen(
     camera: &SeamViewCamera,
     viewport: &Viewport,
-    point: Point3f,
+    point: Point3<f64>,
 ) -> Point3f {
-    let point64 = Point3::new(point[0] as f64, point[1] as f64, point[2] as f64);
-    let offset_h = (point64 - camera.pos).dot(&camera.right_dir);
+    let offset_h = (point - camera.pos).dot(&camera.right_dir);
 
     let span_h = camera.span_y * viewport.width as f64 / viewport.height as f64;
     let x = offset_h / (span_h / 2.0);
-    let y = (point64.y - camera.pos.y) / (camera.span_y / 2.0);
+    let y = (point.y - camera.pos.y) / (camera.span_y / 2.0);
 
     Point3f::new(x as f32, y as f32, 0.0)
+}
+
+pub fn seam_view_screen_to_world(
+    camera: &SeamViewCamera,
+    viewport: &Viewport,
+    point: Point3f,
+) -> Point3<f64> {
+    let span_h = camera.span_y * viewport.width as f64 / viewport.height as f64;
+    camera.pos
+        + (point[1] as f64) * (camera.span_y / 2.0) * Vector3::y()
+        + (point[0] as f64) * (span_h / 2.0) * camera.right_dir
 }
 
 pub fn seam_segment_color(status: RangeStatus) -> [f32; 4] {

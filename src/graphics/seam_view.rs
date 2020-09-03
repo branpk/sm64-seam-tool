@@ -4,7 +4,7 @@ use super::{
     util::{birds_eye_transforms, seam_segment_color},
     SeamInfo, SeamViewCamera, SeamViewScene, Vertex,
 };
-use crate::geo::{Matrix4f, Point3f, Vector3f};
+use crate::geo::{point_f32_to_f64, Matrix4f, Point3f, Vector3f};
 use bytemuck::cast_slice;
 use wgpu::util::DeviceExt;
 
@@ -109,7 +109,8 @@ fn get_seam_vertices(scene: &SeamViewScene) -> Vec<Vertex> {
     //     .transform_vector(&screen_thickness_offset);
 
     let vertex = |pos: Point3f, color: [f32; 4]| -> Vertex {
-        let screen_pos = seam_view_world_to_screen(&scene.camera, &scene.viewport, pos);
+        let screen_pos =
+            seam_view_world_to_screen(&scene.camera, &scene.viewport, point_f32_to_f64(pos));
         Vertex::new(screen_pos, color)
     };
 
