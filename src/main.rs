@@ -1,14 +1,15 @@
 use bytemuck::{cast, from_bytes};
-use edge::{Edge, ProjectedPoint, ProjectionAxis};
+use edge::{Edge, Orientation, ProjectedPoint, ProjectionAxis};
 use float_range::{step_f32, step_f32_by};
 use game_state::{GameState, Globals};
-use geo::{direction_to_pitch_yaw, pitch_yaw_to_direction, Point3f, Vector3f};
+use geo::{direction_to_pitch_yaw, pitch_yaw_to_direction, Point3f, Vector3f, Vector4f};
 use graphics::{
-    seam_transforms, BirdsEyeCamera, Camera, GameViewScene, ImguiRenderer, Renderer, RotateCamera,
-    Scene, SeamInfo, SeamSegment, SeamViewScene, SurfaceType, Viewport,
+    BirdsEyeCamera, Camera, GameViewScene, ImguiRenderer, Renderer, RotateCamera, Scene, SeamInfo,
+    SeamSegment, SeamViewCamera, SeamViewScene, SurfaceType, Viewport,
 };
 use imgui::{im_str, Condition, ConfigFlags, Context, DrawData, MouseButton, Ui};
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
+use nalgebra::{Point3, Vector3};
 use process::Process;
 use read_process_memory::{copy_address, TryIntoProcessHandle};
 use seam::Seam;
@@ -52,7 +53,7 @@ impl App {
     fn new() -> Self {
         App {
             // FIXME: Set denorm setting (or handle manually)
-            process: Process::attach(94400, 0x008EBA80),
+            process: Process::attach(54564, 0x008EBA80),
             globals: Globals::US,
             seam_processor: SeamProcessor::new(),
             hovered_seam: None,
@@ -146,28 +147,43 @@ impl App {
             height: ui.window_size()[1],
         };
 
-        let midpoint = seam.endpoint1() + (seam.endpoint2() - seam.endpoint1()) / 2.0;
-
-        let w_range = seam.edge1.w_range();
-        let y_range = seam.edge1.y_range();
-        let span_y = (y_range.end - y_range.start + 50.0)
-            .max((w_range.end - w_range.start + 50.0) * viewport.height / viewport.width);
-
-        let camera = BirdsEyeCamera {
-            pos: [midpoint.x, midpoint.y, midpoint.z],
-            span_y,
+        let w_axis = match seam.edge1.projection_axis {
+            ProjectionAxis::X => Vector3::z(),
+            ProjectionAxis::Z => Vector3::x(),
+        };
+        let screen_right = match seam.edge1.orientation {
+            Orientation::Positive => -w_axis,
+            Orientation::Negative => w_axis,
         };
 
-        let (proj_matrix, view_matrix) = seam_transforms(
-            &camera,
-            &viewport,
-            seam.edge1.projection_axis,
-            seam.edge1.orientation,
-        );
-        let world_to_screen = proj_matrix * view_matrix;
-        let screen_to_world = world_to_screen
-            .pseudo_inverse(0.0)
-            .unwrap_or(nalgebra::zero());
+        let camera_pos = seam.endpoint1(); //seam.endpoint1() + (seam.endpoint2() - seam.endpoint1()) / 2.0;
+
+        // let w_range = seam.edge1.w_range();
+        // let y_range = seam.edge1.y_range();
+        // let span_y = (y_range.end - y_range.start + 50.0)
+        //     .max((w_range.end - w_range.start + 50.0) * viewport.height / viewport.width);
+        let span_y: f64 = 0.000005;
+
+        let camera = SeamViewCamera {
+            pos: Point3::new(
+                camera_pos[0] as f64,
+                camera_pos[1] as f64,
+                camera_pos[2] as f64,
+            ),
+            span_y: span_y as f64,
+            right_dir: screen_right,
+        };
+
+        // let (proj_matrix, view_matrix) = seam_transforms(
+        //     &camera,
+        //     &viewport,
+        //     seam.edge1.projection_axis,
+        //     seam.edge1.orientation,
+        // );
+        // let world_to_screen = proj_matrix * view_matrix;
+        // let screen_to_world = world_to_screen
+        //     .pseudo_inverse(0.0)
+        //     .unwrap_or(nalgebra::zero());
 
         let screen_mouse_pos =
             get_norm_mouse_pos(ui.io().mouse_pos, ui.window_pos(), ui.window_size());
@@ -182,17 +198,17 @@ impl App {
         if ui.button(im_str!("Close"), [0.0, 0.0]) {
             self.selected_seam = None;
         }
-        if let Some((mouse_x, mouse_y)) = screen_mouse_pos {
-            let mouse_pos = screen_to_world.transform_point(&Point3f::new(mouse_x, mouse_y, 0.0));
-            match seam.edge1.projection_axis {
-                ProjectionAxis::X => {
-                    ui.text(im_str!("(_, {}, {})", mouse_pos.y, mouse_pos.z));
-                }
-                ProjectionAxis::Z => {
-                    ui.text(im_str!("({}, {}, _)", mouse_pos.x, mouse_pos.y));
-                }
-            }
-        }
+        // if let Some((mouse_x, mouse_y)) = screen_mouse_pos {
+        //     let mouse_pos = screen_to_world.transform_point(&Point3f::new(mouse_x, mouse_y, 0.0));
+        //     match seam.edge1.projection_axis {
+        //         ProjectionAxis::X => {
+        //             ui.text(im_str!("(_, {}, {})", mouse_pos.y, mouse_pos.z));
+        //         }
+        //         ProjectionAxis::Z => {
+        //             ui.text(im_str!("({}, {}, _)", mouse_pos.x, mouse_pos.y));
+        //         }
+        //     }
+        // }
 
         scene
     }

@@ -1,10 +1,10 @@
-use super::{BirdsEyeCamera, RotateCamera, Viewport};
+use super::{BirdsEyeCamera, RotateCamera, SeamViewCamera, Viewport};
 use crate::{
     edge::{Orientation, ProjectionAxis},
     geo::{direction_to_pitch_yaw, Matrix4f, Point3f, Vector3f, Vector4f},
     seam::RangeStatus,
 };
-use nalgebra::distance;
+use nalgebra::{distance, Point3};
 use std::f32::consts::PI;
 
 pub fn rotate_transforms(camera: &RotateCamera, viewport: &Viewport) -> (Matrix4f, Matrix4f) {
@@ -47,34 +47,19 @@ pub fn birds_eye_transforms(camera: &BirdsEyeCamera, viewport: &Viewport) -> (Ma
     (proj_matrix, view_matrix)
 }
 
-pub fn seam_transforms(
-    camera: &BirdsEyeCamera,
+pub fn seam_view_world_to_screen(
+    camera: &SeamViewCamera,
     viewport: &Viewport,
-    projection_axis: ProjectionAxis,
-    orientation: Orientation,
-) -> (Matrix4f, Matrix4f) {
-    let w_axis = match projection_axis {
-        ProjectionAxis::X => Vector4f::z(),
-        ProjectionAxis::Z => Vector4f::x(),
-    };
-    let screen_right = match orientation {
-        Orientation::Positive => -w_axis,
-        Orientation::Negative => w_axis,
-    };
+    point: Point3f,
+) -> Point3f {
+    let point64 = Point3::new(point[0] as f64, point[1] as f64, point[2] as f64);
+    let offset_h = (point64 - camera.pos).dot(&camera.right_dir);
 
-    let rotation =
-        Matrix4f::from_columns(&[screen_right, Vector4f::y(), nalgebra::zero(), Vector4f::w()])
-            .transpose();
-    let scaling = Matrix4f::new_nonuniform_scaling(&Vector3f::new(
-        2.0 / (camera.span_y * viewport.width / viewport.height),
-        2.0 / camera.span_y,
-        1.0,
-    ));
-    let proj_matrix = scaling * rotation;
+    let span_h = camera.span_y * viewport.width as f64 / viewport.height as f64;
+    let x = offset_h / (span_h / 2.0);
+    let y = (point64.y - camera.pos.y) / (camera.span_y / 2.0);
 
-    let view_matrix = Matrix4f::new_translation(&-Vector3f::from_row_slice(&camera.pos));
-
-    (proj_matrix, view_matrix)
+    Point3f::new(x as f32, y as f32, 0.0)
 }
 
 pub fn seam_segment_color(status: RangeStatus) -> [f32; 4] {

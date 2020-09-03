@@ -3,19 +3,13 @@ use crate::{
     geo::{Point3f, Vector3f},
     seam::{RangeStatus, Seam},
 };
+use nalgebra::{Point3, Vector3};
 use std::collections::HashSet;
 
 #[derive(Debug, Clone)]
 pub enum Scene {
     GameView(GameViewScene),
     SeamView(SeamViewScene),
-}
-
-#[derive(Debug, Clone)]
-pub struct SeamViewScene {
-    pub viewport: Viewport,
-    pub camera: BirdsEyeCamera,
-    pub seam: SeamInfo,
 }
 
 #[derive(Debug, Clone)]
@@ -28,6 +22,13 @@ pub struct GameViewScene {
     pub hidden_surfaces: HashSet<usize>,
     pub seams: Vec<SeamInfo>,
     pub hovered_seam: Option<Seam>,
+}
+
+#[derive(Debug, Clone)]
+pub struct SeamViewScene {
+    pub viewport: Viewport,
+    pub camera: SeamViewCamera,
+    pub seam: SeamInfo,
 }
 
 #[derive(Debug, Clone)]
@@ -65,6 +66,13 @@ impl RotateCamera {
 pub struct BirdsEyeCamera {
     pub pos: [f32; 3],
     pub span_y: f32,
+}
+
+#[derive(Debug, Clone)]
+pub struct SeamViewCamera {
+    pub pos: Point3<f64>,
+    pub span_y: f64,
+    pub right_dir: Vector3<f64>,
 }
 
 #[derive(Debug, Clone)]
