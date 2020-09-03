@@ -5,7 +5,18 @@ use crate::{
 use std::collections::HashSet;
 
 #[derive(Debug, Clone)]
-pub struct Scene {
+pub enum Scene {
+    GameView(GameViewScene),
+    SeamView(SeamViewScene),
+}
+
+#[derive(Debug, Clone)]
+pub struct SeamViewScene {
+    pub seam: SeamInfo,
+}
+
+#[derive(Debug, Clone)]
+pub struct GameViewScene {
     pub viewport: Viewport,
     pub camera: Camera,
     pub surfaces: Vec<Surface>,

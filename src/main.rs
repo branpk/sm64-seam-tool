@@ -9,7 +9,9 @@ use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use process::Process;
 use read_process_memory::{copy_address, TryIntoProcessHandle};
 use renderer::Renderer;
-use scene::{Camera, RotateCamera, Scene, SeamInfo, SeamSegment, SurfaceType, Viewport};
+use scene::{
+    Camera, GameViewScene, RotateCamera, Scene, SeamInfo, SeamSegment, SurfaceType, Viewport,
+};
 use seam::Seam;
 use seam_processor::SeamProcessor;
 use std::{
@@ -89,7 +91,7 @@ impl App {
         imgui::ChildWindow::new("game-view")
             .size([ui.window_size()[0], game_view_height])
             .build(ui, || {
-                scenes.push(self.render_game_view(ui, &state));
+                scenes.push(Scene::GameView(self.render_game_view(ui, &state)));
             });
 
         if let Some(seam) = self.selected_seam.clone() {
@@ -107,14 +109,14 @@ impl App {
         scenes
     }
 
-    fn render_game_view(&mut self, ui: &Ui, state: &GameState) -> Scene {
+    fn render_game_view(&mut self, ui: &Ui, state: &GameState) -> GameViewScene {
         let viewport = Viewport {
             x: 0.0,
             y: 0.0,
             width: ui.window_size()[0],
             height: ui.window_size()[1],
         };
-        let scene = build_scene(
+        let scene = build_game_view_scene(
             viewport,
             &state,
             &self.seam_processor,
@@ -144,13 +146,13 @@ impl App {
     }
 }
 
-fn build_scene(
+fn build_game_view_scene(
     viewport: Viewport,
     game_state: &GameState,
     seam_processor: &SeamProcessor,
     hovered_seam: Option<Seam>,
-) -> Scene {
-    Scene {
+) -> GameViewScene {
+    GameViewScene {
         viewport,
         camera: Camera::Rotate(RotateCamera {
             pos: game_state.lakitu_pos,

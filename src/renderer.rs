@@ -1,6 +1,6 @@
 use crate::{
     geo::{direction_to_pitch_yaw, Matrix4f, Point3f, Vector3f, Vector4f},
-    scene::{BirdsEyeCamera, Camera, RotateCamera, Scene, SurfaceType, Viewport},
+    scene::{BirdsEyeCamera, Camera, GameViewScene, RotateCamera, Scene, SurfaceType, Viewport},
     seam::RangeStatus,
 };
 use bytemuck::{cast_slice, offset_of, Pod, Zeroable};
@@ -29,7 +29,8 @@ impl Vertex {
 unsafe impl Zeroable for Vertex {}
 unsafe impl Pod for Vertex {}
 
-struct SceneBundle {
+struct GameViewSceneBundle<'a> {
+    scene: &'a GameViewScene,
     transform_bind_group: wgpu::BindGroup,
     surface_vertex_buffer: (usize, wgpu::Buffer),
     // hidden_surface_vertex_buffer: (usize, wgpu::Buffer),
@@ -162,7 +163,18 @@ impl Renderer {
             .1
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let scene_bundles: Vec<SceneBundle> = scenes
+        let game_view_scenes: Vec<&GameViewScene> = scenes
+            .iter()
+            .filter_map(|scene| {
+                if let Scene::GameView(scene) = scene {
+                    Some(scene)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let game_view_scenes_bundles: Vec<GameViewSceneBundle<'_>> = game_view_scenes
             .iter()
             .map(|scene| {
                 let (proj_matrix, view_matrix) = match &scene.camera {
@@ -246,7 +258,8 @@ impl Renderer {
                     }),
                 );
 
-                SceneBundle {
+                GameViewSceneBundle {
+                    scene,
                     transform_bind_group,
                     surface_vertex_buffer,
                     // hidden_surface_vertex_buffer,
@@ -284,7 +297,7 @@ impl Renderer {
                 }),
             });
 
-            for (scene, bundle) in scenes.iter().zip(&scene_bundles) {
+            for (scene, bundle) in game_view_scenes.iter().zip(&game_view_scenes_bundles) {
                 let mut viewport = scene.viewport.clone();
                 viewport.width = viewport.width.min(output_size.0 as f32 - viewport.x);
                 viewport.height = viewport.height.min(output_size.1 as f32 - viewport.y);
@@ -633,7 +646,7 @@ fn birds_eye_transforms(camera: &BirdsEyeCamera, output_size: (u32, u32)) -> (Ma
     (proj_matrix, view_matrix)
 }
 
-fn get_surface_vertices(scene: &Scene) -> (Vec<Vertex>, Vec<Vertex>) {
+fn get_surface_vertices(scene: &GameViewScene) -> (Vec<Vertex>, Vec<Vertex>) {
     let mut surface_vertices: Vec<Vertex> = Vec::new();
     let mut hidden_surface_vertices: Vec<Vertex> = Vec::new();
 
@@ -680,7 +693,7 @@ fn get_surface_vertices(scene: &Scene) -> (Vec<Vertex>, Vec<Vertex>) {
     (surface_vertices, hidden_surface_vertices)
 }
 
-fn get_wall_hitbox_vertices(scene: &Scene) -> (Vec<Vertex>, Vec<Vertex>) {
+fn get_wall_hitbox_vertices(scene: &GameViewScene) -> (Vec<Vertex>, Vec<Vertex>) {
     let mut wall_hitbox_vertices: Vec<Vertex> = Vec::new();
     let mut wall_hitbox_outline_vertices: Vec<Vertex> = Vec::new();
 
@@ -791,7 +804,7 @@ fn get_wall_hitbox_vertices(scene: &Scene) -> (Vec<Vertex>, Vec<Vertex>) {
     (wall_hitbox_vertices, wall_hitbox_outline_vertices)
 }
 
-fn get_seam_vertices(scene: &Scene) -> Vec<Vertex> {
+fn get_seam_vertices(scene: &GameViewScene) -> Vec<Vertex> {
     let mut vertices = Vec::new();
 
     for seam in &scene.seams {
