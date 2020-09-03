@@ -1,6 +1,7 @@
 use super::{
     game_view::GameViewSceneBundle,
     pipelines::Pipelines,
+    seam_view::SeamViewSceneBundle,
     util::{birds_eye_transforms, rotate_transforms},
     BirdsEyeCamera, Camera, GameViewScene, RotateCamera, Scene, SeamViewScene, SurfaceType, Vertex,
     Viewport, DEPTH_TEXTURE_FORMAT, NUM_OUTPUT_SAMPLES,
@@ -13,12 +14,6 @@ use bytemuck::cast_slice;
 use nalgebra::distance;
 use std::{f32::consts::PI, iter};
 use wgpu::util::DeviceExt;
-
-struct SeamViewSceneBundle<'a> {
-    scene: &'a SeamViewScene,
-    transform_bind_group: wgpu::BindGroup,
-    seam_vertex_buffer: (usize, wgpu::Buffer),
-}
 
 pub struct Renderer {
     multisample_texture: Option<((u32, u32), wgpu::Texture)>,
@@ -108,7 +103,7 @@ impl Renderer {
             .1
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let game_view_scenes_bundles: Vec<GameViewSceneBundle<'_>> = scenes
+        let game_view_scene_bundles: Vec<GameViewSceneBundle<'_>> = scenes
             .iter()
             .filter_map(|scene| {
                 if let Scene::GameView(scene) = scene {
@@ -116,7 +111,21 @@ impl Renderer {
                         scene,
                         device,
                         &self.transform_bind_group_layout,
-                        output_size,
+                    ))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let seam_view_scene_bundles: Vec<SeamViewSceneBundle<'_>> = scenes
+            .iter()
+            .filter_map(|scene| {
+                if let Scene::SeamView(scene) = scene {
+                    Some(SeamViewSceneBundle::build(
+                        scene,
+                        device,
+                        &self.transform_bind_group_layout,
                     ))
                 } else {
                     None
@@ -151,7 +160,10 @@ impl Renderer {
                 }),
             });
 
-            for bundle in &game_view_scenes_bundles {
+            for bundle in &game_view_scene_bundles {
+                bundle.draw(&mut render_pass, &self.pipelines, output_size);
+            }
+            for bundle in &seam_view_scene_bundles {
                 bundle.draw(&mut render_pass, &self.pipelines, output_size);
             }
         }

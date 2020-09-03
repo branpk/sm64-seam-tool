@@ -10,6 +10,7 @@ mod imgui_renderer;
 mod pipelines;
 mod renderer;
 mod scene;
+mod seam_view;
 mod util;
 
 const NUM_OUTPUT_SAMPLES: u32 = 4;

@@ -112,6 +112,12 @@ impl Edge {
         RangeF32::inclusive(w1.min(w2), w1.max(w2))
     }
 
+    pub fn y_range(&self) -> RangeF32 {
+        let y1 = self.vertex1.y as f32;
+        let y2 = self.vertex2.y as f32;
+        RangeF32::inclusive(y1.min(y2), y1.max(y2))
+    }
+
     pub fn approx_t(&self, w: f32) -> f32 {
         let w1 = self.vertex1.w as f32;
         let w2 = self.vertex2.w as f32;

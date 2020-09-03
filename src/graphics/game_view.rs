@@ -1,6 +1,6 @@
 use super::{
     pipelines::Pipelines,
-    util::{birds_eye_transforms, rotate_transforms},
+    util::{birds_eye_transforms, rotate_transforms, seam_segment_color},
     Camera, GameViewScene, SurfaceType, Vertex,
 };
 use crate::{
@@ -27,11 +27,10 @@ impl<'a> GameViewSceneBundle<'a> {
         scene: &'a GameViewScene,
         device: &wgpu::Device,
         transform_bind_group_layout: &wgpu::BindGroupLayout,
-        output_size: (u32, u32),
     ) -> Self {
         let (proj_matrix, view_matrix) = match &scene.camera {
             Camera::Rotate(camera) => rotate_transforms(camera, &scene.viewport),
-            Camera::BirdsEye(camera) => birds_eye_transforms(camera, output_size),
+            Camera::BirdsEye(camera) => birds_eye_transforms(camera, &scene.viewport),
         };
 
         let proj_matrix_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -356,26 +355,7 @@ fn get_seam_vertices(scene: &GameViewScene) -> Vec<Vertex> {
             let perp_dir_1 = Vector3f::y().cross(&seam_dir);
             let perp_dir_2 = seam_dir.cross(&perp_dir_1);
 
-            let color = match segment.status {
-                RangeStatus::Checked {
-                    has_gap: false,
-                    has_overlap: false,
-                } => [1.0, 1.0, 1.0, 1.0],
-                RangeStatus::Checked {
-                    has_gap: true,
-                    has_overlap: false,
-                } => [0.0, 1.0, 0.0, 1.0],
-                RangeStatus::Checked {
-                    has_gap: false,
-                    has_overlap: true,
-                } => [0.0, 0.0, 1.0, 1.0],
-                RangeStatus::Checked {
-                    has_gap: true,
-                    has_overlap: true,
-                } => [0.0, 1.0, 1.0, 1.0],
-                RangeStatus::Unchecked => [0.1, 0.1, 0.1, 1.0],
-                RangeStatus::Skipped => [1.0, 0.0, 0.0, 1.0],
-            };
+            let color = seam_segment_color(segment.status);
 
             let radius = if scene.hovered_seam.as_ref() == Some(&seam.seam) {
                 10.0

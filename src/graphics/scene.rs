@@ -1,4 +1,5 @@
 use crate::{
+    edge::ProjectedPoint,
     geo::{Point3f, Vector3f},
     seam::{RangeStatus, Seam},
 };
@@ -12,6 +13,8 @@ pub enum Scene {
 
 #[derive(Debug, Clone)]
 pub struct SeamViewScene {
+    pub viewport: Viewport,
+    pub camera: BirdsEyeCamera,
     pub seam: SeamInfo,
 }
 
@@ -103,5 +106,7 @@ pub struct SeamInfo {
 pub struct SeamSegment {
     pub endpoint1: [f32; 3],
     pub endpoint2: [f32; 3],
+    pub proj_endpoint1: ProjectedPoint<f32>,
+    pub proj_endpoint2: ProjectedPoint<f32>,
     pub status: RangeStatus,
 }

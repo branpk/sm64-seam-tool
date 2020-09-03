@@ -1,18 +1,18 @@
 use bytemuck::{cast, from_bytes};
-use edge::Edge;
+use edge::{Edge, ProjectedPoint};
 use float_range::{step_f32, step_f32_by};
 use game_state::{GameState, Globals};
 use geo::{direction_to_pitch_yaw, pitch_yaw_to_direction, Point3f, Vector3f};
 use graphics::{
-    Camera, GameViewScene, ImguiRenderer, Renderer, RotateCamera, Scene, SeamInfo, SeamSegment,
-    SurfaceType, Viewport,
+    BirdsEyeCamera, Camera, GameViewScene, ImguiRenderer, Renderer, RotateCamera, Scene, SeamInfo,
+    SeamSegment, SeamViewScene, SurfaceType, Viewport,
 };
 use imgui::{im_str, Condition, ConfigFlags, Context, DrawData, MouseButton, Ui};
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use process::Process;
 use read_process_memory::{copy_address, TryIntoProcessHandle};
 use seam::Seam;
-use seam_processor::SeamProcessor;
+use seam_processor::{SeamProcessor, SeamProgress};
 use std::{
     collections::HashSet,
     convert::TryInto,
@@ -78,29 +78,25 @@ impl App {
         let state = GameState::read(&self.globals, &self.process);
         self.seam_processor.update(&state);
 
-        let game_view_height = if self.selected_seam.is_some() {
-            ui.window_size()[1] / 2.0
-        } else {
-            ui.window_size()[1]
-        };
-
         let mut scenes = Vec::new();
+
         imgui::ChildWindow::new("game-view")
-            .size([ui.window_size()[0], game_view_height])
+            .size([
+                0.0,
+                if self.selected_seam.is_some() {
+                    ui.window_size()[1] / 2.0
+                } else {
+                    0.0
+                },
+            ])
             .build(ui, || {
                 scenes.push(Scene::GameView(self.render_game_view(ui, &state)));
             });
 
         if let Some(seam) = self.selected_seam.clone() {
-            imgui::ChildWindow::new("seam-info")
-                .size([ui.window_size()[0], ui.window_size()[1] / 2.0])
-                .build(ui, || {
-                    ui.text(im_str!("Seam: {:?}", seam));
-
-                    if ui.button(im_str!("Close"), [0.0, 0.0]) {
-                        self.selected_seam = None;
-                    }
-                });
+            imgui::ChildWindow::new("seam-info").build(ui, || {
+                scenes.push(Scene::SeamView(self.render_seam_view(ui, &seam)));
+            });
         }
 
         scenes
@@ -108,8 +104,8 @@ impl App {
 
     fn render_game_view(&mut self, ui: &Ui, state: &GameState) -> GameViewScene {
         let viewport = Viewport {
-            x: 0.0,
-            y: 0.0,
+            x: ui.window_pos()[0],
+            y: ui.window_pos()[1],
             width: ui.window_size()[0],
             height: ui.window_size()[1],
         };
@@ -138,6 +134,46 @@ impl App {
             "remaining: {}",
             self.seam_processor.remaining_seams()
         ));
+
+        scene
+    }
+
+    fn render_seam_view(&mut self, ui: &Ui, seam: &Seam) -> SeamViewScene {
+        let viewport = Viewport {
+            x: ui.window_pos()[0],
+            y: ui.window_pos()[1],
+            width: ui.window_size()[0],
+            height: ui.window_size()[1],
+        };
+
+        let w_range = seam.edge1.w_range();
+        let y_range = seam.edge1.y_range();
+
+        let span_y = (y_range.end - y_range.start + 50.0)
+            .max((w_range.end - w_range.start + 50.0) * viewport.height / viewport.width);
+
+        let camera = BirdsEyeCamera {
+            pos: [
+                (w_range.start + w_range.end) / 2.0,
+                (y_range.start + y_range.end) / 2.0,
+                0.0,
+            ],
+            span_y,
+        };
+
+        let progress = self.seam_processor.seam_progress(seam);
+
+        let scene = SeamViewScene {
+            viewport,
+            camera,
+            seam: get_segment_info(seam, &progress),
+        };
+
+        ui.text(im_str!("Seam: {:?}", seam));
+
+        if ui.button(im_str!("Close"), [0.0, 0.0]) {
+            self.selected_seam = None;
+        }
 
         scene
     }
@@ -192,23 +228,38 @@ fn build_game_view_scene(
             .iter()
             .map(|seam| {
                 let progress = seam_processor.seam_progress(seam);
-
-                let segments = progress
-                    .segments()
-                    .map(|(range, status)| SeamSegment {
-                        endpoint1: seam.approx_point_at_w(range.start),
-                        endpoint2: seam.approx_point_at_w(range.end),
-                        status,
-                    })
-                    .collect();
-
-                SeamInfo {
-                    seam: seam.clone(),
-                    segments,
-                }
+                get_segment_info(seam, &progress)
             })
             .collect(),
         hovered_seam,
+    }
+}
+
+fn get_segment_info(seam: &Seam, progress: &SeamProgress) -> SeamInfo {
+    let segments = progress
+        .segments()
+        .map(|(range, status)| {
+            let endpoint1 = seam.approx_point_at_w(range.start);
+            let endpoint2 = seam.approx_point_at_w(range.end);
+            SeamSegment {
+                endpoint1,
+                endpoint2,
+                proj_endpoint1: ProjectedPoint {
+                    w: range.start,
+                    y: endpoint1[1],
+                },
+                proj_endpoint2: ProjectedPoint {
+                    w: range.end,
+                    y: endpoint2[1],
+                },
+                status,
+            }
+        })
+        .collect();
+
+    SeamInfo {
+        seam: seam.clone(),
+        segments,
     }
 }
 
@@ -314,6 +365,7 @@ fn main() {
                             .resizable(false)
                             .title_bar(false)
                             .scroll_bar(false)
+                            .scrollable(false)
                             .bring_to_front_on_focus(false)
                             .build(&ui, || {
                                 scenes = app.render(&ui);
