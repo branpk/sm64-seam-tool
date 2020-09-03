@@ -1,11 +1,11 @@
 use bytemuck::{cast, from_bytes};
-use edge::{Edge, ProjectedPoint};
+use edge::{Edge, ProjectedPoint, ProjectionAxis};
 use float_range::{step_f32, step_f32_by};
 use game_state::{GameState, Globals};
 use geo::{direction_to_pitch_yaw, pitch_yaw_to_direction, Point3f, Vector3f};
 use graphics::{
-    BirdsEyeCamera, Camera, GameViewScene, ImguiRenderer, Renderer, RotateCamera, Scene, SeamInfo,
-    SeamSegment, SeamViewScene, SurfaceType, Viewport,
+    seam_transforms, BirdsEyeCamera, Camera, GameViewScene, ImguiRenderer, Renderer, RotateCamera,
+    Scene, SeamInfo, SeamSegment, SeamViewScene, SurfaceType, Viewport,
 };
 use imgui::{im_str, Condition, ConfigFlags, Context, DrawData, MouseButton, Ui};
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
@@ -20,7 +20,7 @@ use std::{
     iter,
     time::{Duration, Instant},
 };
-use util::{find_hovered_seam, get_mouse_ray};
+use util::{find_hovered_seam, get_mouse_ray, get_norm_mouse_pos};
 use winit::{
     dpi::PhysicalSize,
     event::{Event, WindowEvent},
@@ -146,33 +146,52 @@ impl App {
             height: ui.window_size()[1],
         };
 
+        let midpoint = seam.endpoint1() + (seam.endpoint2() - seam.endpoint1()) / 2.0;
+
         let w_range = seam.edge1.w_range();
         let y_range = seam.edge1.y_range();
-
         let span_y = (y_range.end - y_range.start + 50.0)
             .max((w_range.end - w_range.start + 50.0) * viewport.height / viewport.width);
 
         let camera = BirdsEyeCamera {
-            pos: [
-                (w_range.start + w_range.end) / 2.0,
-                (y_range.start + y_range.end) / 2.0,
-                0.0,
-            ],
+            pos: [midpoint.x, midpoint.y, midpoint.z],
             span_y,
         };
 
-        let progress = self.seam_processor.seam_progress(seam);
+        let (proj_matrix, view_matrix) = seam_transforms(
+            &camera,
+            &viewport,
+            seam.edge1.projection_axis,
+            seam.edge1.orientation,
+        );
+        let world_to_screen = proj_matrix * view_matrix;
+        let screen_to_world = world_to_screen
+            .pseudo_inverse(0.0)
+            .unwrap_or(nalgebra::zero());
 
+        let screen_mouse_pos =
+            get_norm_mouse_pos(ui.io().mouse_pos, ui.window_pos(), ui.window_size());
+
+        let progress = self.seam_processor.seam_progress(seam);
         let scene = SeamViewScene {
             viewport,
             camera,
             seam: get_segment_info(seam, &progress),
         };
 
-        ui.text(im_str!("Seam: {:?}", seam));
-
         if ui.button(im_str!("Close"), [0.0, 0.0]) {
             self.selected_seam = None;
+        }
+        if let Some((mouse_x, mouse_y)) = screen_mouse_pos {
+            let mouse_pos = screen_to_world.transform_point(&Point3f::new(mouse_x, mouse_y, 0.0));
+            match seam.edge1.projection_axis {
+                ProjectionAxis::X => {
+                    ui.text(im_str!("(_, {}, {})", mouse_pos.y, mouse_pos.z));
+                }
+                ProjectionAxis::Z => {
+                    ui.text(im_str!("({}, {}, _)", mouse_pos.x, mouse_pos.y));
+                }
+            }
         }
 
         scene

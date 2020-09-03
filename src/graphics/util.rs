@@ -1,6 +1,6 @@
 use super::{BirdsEyeCamera, RotateCamera, Viewport};
 use crate::{
-    edge::Orientation,
+    edge::{Orientation, ProjectionAxis},
     geo::{direction_to_pitch_yaw, Matrix4f, Point3f, Vector3f, Vector4f},
     seam::RangeStatus,
 };
@@ -50,18 +50,27 @@ pub fn birds_eye_transforms(camera: &BirdsEyeCamera, viewport: &Viewport) -> (Ma
 pub fn seam_transforms(
     camera: &BirdsEyeCamera,
     viewport: &Viewport,
+    projection_axis: ProjectionAxis,
     orientation: Orientation,
 ) -> (Matrix4f, Matrix4f) {
-    let sign = match orientation {
-        Orientation::Positive => -1.0,
-        Orientation::Negative => 1.0,
+    let w_axis = match projection_axis {
+        ProjectionAxis::X => Vector4f::z(),
+        ProjectionAxis::Z => Vector4f::x(),
+    };
+    let screen_right = match orientation {
+        Orientation::Positive => -w_axis,
+        Orientation::Negative => w_axis,
     };
 
-    let proj_matrix = Matrix4f::new_nonuniform_scaling(&Vector3f::new(
-        sign * 2.0 / (camera.span_y * viewport.width / viewport.height),
+    let rotation =
+        Matrix4f::from_columns(&[screen_right, Vector4f::y(), nalgebra::zero(), Vector4f::w()])
+            .transpose();
+    let scaling = Matrix4f::new_nonuniform_scaling(&Vector3f::new(
+        2.0 / (camera.span_y * viewport.width / viewport.height),
         2.0 / camera.span_y,
         1.0,
     ));
+    let proj_matrix = scaling * rotation;
 
     let view_matrix = Matrix4f::new_translation(&-Vector3f::from_row_slice(&camera.pos));
 

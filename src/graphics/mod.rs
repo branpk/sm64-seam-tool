@@ -4,6 +4,7 @@ use bytemuck::{Pod, Zeroable};
 pub use imgui_renderer::*;
 pub use renderer::*;
 pub use scene::*;
+pub use util::*;
 
 mod game_view;
 mod imgui_renderer;

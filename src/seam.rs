@@ -1,6 +1,7 @@
 use crate::{
     edge::{Edge, ProjectedPoint},
     float_range::{step_f32_by, RangeF32},
+    geo::Point3f,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -115,5 +116,21 @@ impl Seam {
 
         let t = self.edge1.approx_t(w);
         [x1 + t * (x2 - x1), y1 + t * (y2 - y1), z1 + t * (z2 - z1)]
+    }
+
+    pub fn endpoint1(&self) -> Point3f {
+        Point3f::new(
+            self.endpoints.0[0] as f32,
+            self.endpoints.0[1] as f32,
+            self.endpoints.0[2] as f32,
+        )
+    }
+
+    pub fn endpoint2(&self) -> Point3f {
+        Point3f::new(
+            self.endpoints.1[0] as f32,
+            self.endpoints.1[1] as f32,
+            self.endpoints.1[2] as f32,
+        )
     }
 }

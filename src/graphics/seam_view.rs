@@ -22,6 +22,7 @@ impl<'a> SeamViewSceneBundle<'a> {
         let (proj_matrix, view_matrix) = seam_transforms(
             &scene.camera,
             &scene.viewport,
+            scene.seam.seam.edge1.projection_axis,
             scene.seam.seam.edge1.orientation,
         );
 
@@ -104,18 +105,28 @@ impl<'a> SeamViewSceneBundle<'a> {
 
 fn get_seam_vertices(seam_info: &SeamInfo) -> Vec<Vertex> {
     let seam = &seam_info.seam;
-    let edge = &seam.edge1;
+    let endpoint1 = Point3f::new(
+        seam.endpoints.0[0] as f32,
+        seam.endpoints.0[1] as f32,
+        seam.endpoints.0[2] as f32,
+    );
+    let endpoint2 = Point3f::new(
+        seam.endpoints.1[0] as f32,
+        seam.endpoints.1[1] as f32,
+        seam.endpoints.1[2] as f32,
+    );
+
     vec![
         Vertex {
-            pos: [edge.vertex1.w as f32, edge.vertex1.y as f32, 0.0],
+            pos: [endpoint1.x, endpoint1.y, endpoint1.z],
             color: [1.0, 1.0, 1.0, 1.0],
         },
         Vertex {
-            pos: [edge.vertex2.w as f32, edge.vertex2.y as f32, 0.0],
+            pos: [endpoint2.x, endpoint2.y, endpoint2.z],
             color: [1.0, 1.0, 1.0, 1.0],
         },
         Vertex {
-            pos: [edge.vertex1.w as f32, edge.vertex1.y as f32 + 100.0, 0.0],
+            pos: [endpoint1.x, endpoint1.y + 100.0, endpoint1.z],
             color: [1.0, 1.0, 1.0, 1.0],
         },
     ]
