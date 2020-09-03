@@ -3,15 +3,14 @@ use edge::Edge;
 use float_range::{step_f32, step_f32_by};
 use game_state::{GameState, Globals};
 use geo::{direction_to_pitch_yaw, pitch_yaw_to_direction, Point3f, Vector3f};
+use graphics::{
+    Camera, GameViewScene, ImguiRenderer, Renderer, RotateCamera, Scene, SeamInfo, SeamSegment,
+    SurfaceType, Viewport,
+};
 use imgui::{im_str, Condition, ConfigFlags, Context, DrawData, MouseButton, Ui};
-use imgui_renderer::ImguiRenderer;
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use process::Process;
 use read_process_memory::{copy_address, TryIntoProcessHandle};
-use renderer::Renderer;
-use scene::{
-    Camera, GameViewScene, RotateCamera, Scene, SeamInfo, SeamSegment, SurfaceType, Viewport,
-};
 use seam::Seam;
 use seam_processor::SeamProcessor;
 use std::{
@@ -33,10 +32,8 @@ mod edge;
 mod float_range;
 mod game_state;
 mod geo;
-mod imgui_renderer;
+mod graphics;
 mod process;
-mod renderer;
-mod scene;
 mod seam;
 mod seam_processor;
 mod spatial_partition;
@@ -176,7 +173,7 @@ fn build_game_view_scene(
                 let to_f32_3 =
                     |vertex: [i16; 3]| [vertex[0] as f32, vertex[1] as f32, vertex[2] as f32];
 
-                scene::Surface {
+                graphics::Surface {
                     ty,
                     vertices: [
                         to_f32_3(surface.vertex1),

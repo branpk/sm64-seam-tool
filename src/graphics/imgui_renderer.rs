@@ -77,12 +77,12 @@ impl ImguiRenderer {
             ),
             vertex_stage: wgpu::ProgrammableStageDescriptor {
                 module: &device
-                    .create_shader_module(wgpu::include_spirv!("../bin/shaders/imgui.vert.spv")),
+                    .create_shader_module(wgpu::include_spirv!("../../bin/shaders/imgui.vert.spv")),
                 entry_point: "main",
             },
             fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
                 module: &device
-                    .create_shader_module(wgpu::include_spirv!("../bin/shaders/imgui.frag.spv")),
+                    .create_shader_module(wgpu::include_spirv!("../../bin/shaders/imgui.frag.spv")),
                 entry_point: "main",
             }),
             rasterization_state: None,

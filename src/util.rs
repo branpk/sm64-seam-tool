@@ -2,7 +2,7 @@ use crate::{
     edge::Edge,
     game_state::GameState,
     geo::{direction_to_pitch_yaw, pitch_yaw_to_direction, Point3f, Vector3f},
-    scene::RotateCamera,
+    graphics::RotateCamera,
     seam::Seam,
 };
 use std::f32::consts::PI;
