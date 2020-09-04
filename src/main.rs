@@ -1,6 +1,6 @@
 use bytemuck::{cast, from_bytes};
 use edge::{Edge, Orientation, ProjectedPoint, ProjectionAxis};
-use float_range::{step_f32, step_f32_by};
+use float_range::{step_f32, step_f32_by, RangeF32};
 use game_state::{GameState, Globals};
 use geo::{
     direction_to_pitch_yaw, pitch_yaw_to_direction, point_f32_to_f64, point_f64_to_f32, Point3f,
@@ -223,7 +223,31 @@ impl App {
             world_mouse_pos = seam_view_screen_to_world(&camera, &viewport, screen_mouse_pos);
         }
 
-        let progress = self.seam_processor.seam_progress(&seam);
+        let segment_length = camera.span_y as f32 / 100.0;
+
+        let span_w = camera.span_y * viewport.width as f64 / viewport.height as f64;
+        let w = match seam.edge1.projection_axis {
+            ProjectionAxis::X => camera.pos.z,
+            ProjectionAxis::Z => camera.pos.x,
+        };
+        let left_w = (w - span_w / 2.0) as f32;
+        let right_w = (w + span_w / 2.0) as f32;
+
+        let top_y = (camera.pos.y - camera.span_y / 2.0) as f32;
+        let bottom_y = (camera.pos.y + camera.span_y / 2.0) as f32;
+        let top_w = seam.edge1.approx_w(top_y);
+        let bottom_w = seam.edge1.approx_w(bottom_y);
+
+        let min_w = (left_w.max(top_w.min(bottom_w)).max(seam.w_range().start) / segment_length)
+            .floor()
+            * segment_length;
+        let max_w = right_w.min(top_w.max(bottom_w)).min(seam.w_range().end);
+        let visible_w_range = RangeF32::inclusive(min_w, max_w);
+
+        let progress =
+            self.seam_processor
+                .focused_seam_progress(&seam, visible_w_range, segment_length);
+
         let scene = SeamViewScene {
             viewport,
             camera,

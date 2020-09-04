@@ -117,12 +117,12 @@ fn get_seam_vertices(scene: &SeamViewScene) -> Vec<Vertex> {
         let endpoint1 = point_f32_to_f64(segment.endpoint1());
         let endpoint2 = point_f32_to_f64(segment.endpoint2());
 
-        vertices.extend_from_slice(&[
+        vertices.extend(&[
             vertex(endpoint1 - thickness_offset, color),
             vertex(endpoint2 - thickness_offset, color),
             vertex(endpoint1 + thickness_offset, color),
         ]);
-        vertices.extend_from_slice(&[
+        vertices.extend(&[
             vertex(endpoint2 - thickness_offset, color),
             vertex(endpoint1 + thickness_offset, color),
             vertex(endpoint2 + thickness_offset, color),

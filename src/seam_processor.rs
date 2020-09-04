@@ -1,10 +1,9 @@
 use crate::{
-    float_range::{step_f32_by, RangeF32},
+    float_range::RangeF32,
     game_state::{GameState, Surface},
     seam::{RangeStatus, Seam},
     spatial_partition::SpatialPartition,
 };
-use itertools::Itertools;
 use rayon::prelude::*;
 use std::{
     collections::{HashMap, VecDeque},
@@ -17,18 +16,48 @@ use std::{
     time::{Duration, Instant},
 };
 
-const MAX_SEGMENT_SIZE: i32 = 100_000;
-const MAX_SEGMENT_LENGTH: f32 = 5.0;
+const DEFAULT_SEGMENT_LENGTH: f32 = 5.0;
+
+#[derive(Debug, Clone, PartialEq)]
+struct SeamRequest {
+    seam: Seam,
+    w_range: RangeF32,
+    segment_length: f32,
+    is_focused: bool,
+}
+
+impl SeamRequest {
+    fn unfocused(seam: Seam) -> Self {
+        let w_range = seam.w_range();
+        Self {
+            seam,
+            w_range,
+            segment_length: DEFAULT_SEGMENT_LENGTH,
+            is_focused: false,
+        }
+    }
+
+    fn focused(seam: Seam, w_range: RangeF32, segment_length: f32) -> Self {
+        Self {
+            seam,
+            w_range,
+            segment_length,
+            is_focused: true,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct SeamProgress {
+    segment_length: f32,
     complete: Vec<(RangeF32, RangeStatus)>,
     remaining: RangeF32,
 }
 
 impl SeamProgress {
-    fn new(range: RangeF32) -> Self {
+    fn new(range: RangeF32, segment_length: f32) -> Self {
         Self {
+            segment_length,
             complete: Vec::new(),
             remaining: range,
         }
@@ -61,7 +90,7 @@ impl SeamProgress {
             return None;
         }
 
-        let mut split = (self.remaining.start + MAX_SEGMENT_LENGTH).min(self.remaining.end);
+        let mut split = (self.remaining.start + self.segment_length).min(self.remaining.end);
         if self.remaining.start < -1.0 && split > -1.0 {
             split = -1.0;
         }
@@ -89,8 +118,9 @@ impl SeamProgress {
 pub struct SeamProcessor {
     active_seams: Vec<Seam>,
     progress: HashMap<Seam, SeamProgress>,
-    queue: Arc<Mutex<VecDeque<Seam>>>,
-    output_receiver: Receiver<(Seam, SeamProgress)>,
+    queue: Arc<Mutex<VecDeque<SeamRequest>>>,
+    output_receiver: Receiver<(SeamRequest, SeamProgress)>,
+    focused_seam: Option<(SeamRequest, SeamProgress)>,
 }
 
 impl SeamProcessor {
@@ -106,6 +136,7 @@ impl SeamProcessor {
             progress: HashMap::new(),
             queue,
             output_receiver: receiver,
+            focused_seam: None,
         }
     }
 
@@ -164,20 +195,57 @@ impl SeamProcessor {
         {
             let mut queue = self.queue.lock().unwrap();
 
-            queue.retain(|seam| self.active_seams.contains(seam));
+            queue.retain(|request| self.active_seams.contains(&request.seam));
 
             if queue.is_empty() {
                 for seam in &self.active_seams {
                     if !self.progress.contains_key(seam) {
-                        queue.push_back(seam.clone());
+                        queue.push_back(SeamRequest::unfocused(seam.clone()));
                     }
                 }
             }
         }
 
-        while let Ok((seam, progress)) = self.output_receiver.try_recv() {
-            self.progress.insert(seam, progress);
+        while let Ok((request, progress)) = self.output_receiver.try_recv() {
+            if request.is_focused {
+                if let Some((focused_request, _)) = &self.focused_seam {
+                    if focused_request == &request {
+                        self.focused_seam = Some((request, progress));
+                    }
+                }
+            } else {
+                self.progress.insert(request.seam, progress);
+            }
         }
+    }
+
+    pub fn focused_seam_progress(
+        &mut self,
+        seam: &Seam,
+        w_range: RangeF32,
+        segment_length: f32,
+    ) -> SeamProgress {
+        let request = SeamRequest::focused(seam.clone(), w_range, segment_length);
+        let mut progress = SeamProgress::new(w_range, segment_length);
+
+        if let Some((focused_request, focused_progress)) = &self.focused_seam {
+            if &focused_request.seam == seam {
+                progress = focused_progress.clone();
+            }
+            if focused_request == &request {
+                return progress;
+            }
+        }
+
+        self.focused_seam = Some((request.clone(), progress.clone()));
+
+        {
+            let mut queue = self.queue.lock().unwrap();
+            queue.clear();
+            queue.push_back(request);
+        }
+
+        progress
     }
 
     pub fn active_seams(&self) -> &[Seam] {
@@ -195,15 +263,18 @@ impl SeamProcessor {
         self.progress
             .get(seam)
             .cloned()
-            .unwrap_or(SeamProgress::new(seam.w_range()))
+            .unwrap_or(SeamProgress::new(seam.w_range(), DEFAULT_SEGMENT_LENGTH))
     }
 }
 
-fn processor_thread(queue: Arc<Mutex<VecDeque<Seam>>>, output: Sender<(Seam, SeamProgress)>) {
+fn processor_thread(
+    queue: Arc<Mutex<VecDeque<SeamRequest>>>,
+    output: Sender<(SeamRequest, SeamProgress)>,
+) {
     loop {
         let head = queue.lock().unwrap().pop_front();
-        if let Some(seam) = head {
-            let mut progress = SeamProgress::new(seam.w_range());
+        if let Some(request) = head {
+            let mut progress = SeamProgress::new(request.w_range, request.segment_length);
 
             let mut segments = Vec::new();
             while let Some(segment) = progress.take_next_segment() {
@@ -212,12 +283,12 @@ fn processor_thread(queue: Arc<Mutex<VecDeque<Seam>>>, output: Sender<(Seam, Sea
 
             let segment_statuses: Vec<(RangeF32, RangeStatus)> = segments
                 .into_par_iter()
-                .map(|segment| (segment, seam.check_range(segment)))
+                .map(|segment| (segment, request.seam.check_range(segment)))
                 .collect();
 
             for (segment, status) in segment_statuses {
                 progress.complete_segment(segment, status);
-                let _ = output.send((seam.clone(), progress.clone()));
+                let _ = output.send((request.clone(), progress.clone()));
             }
         }
     }
