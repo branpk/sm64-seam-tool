@@ -50,6 +50,8 @@ struct SeamViewState {
     seam: Seam,
     camera_pos: Point3<f64>,
     mouse_drag_start_pos: Option<Point3<f64>>,
+    zoom: f64,
+    initial_span_y: Option<f64>,
 }
 
 impl SeamViewState {
@@ -59,6 +61,8 @@ impl SeamViewState {
             seam,
             camera_pos: point_f32_to_f64(camera_pos),
             mouse_drag_start_pos: None,
+            zoom: 0.0,
+            initial_span_y: None,
         }
     }
 }
@@ -179,29 +183,11 @@ impl App {
             height: ui.window_size()[1],
         };
 
-        let w_axis = match seam.edge1.projection_axis {
-            ProjectionAxis::X => Vector3::z(),
-            ProjectionAxis::Z => Vector3::x(),
-        };
-        let screen_right = match seam.edge1.orientation {
-            Orientation::Positive => -w_axis,
-            Orientation::Negative => w_axis,
-        };
-
-        let w_range = seam.edge1.w_range();
-        let y_range = seam.edge1.y_range();
-        let span_y = (y_range.end - y_range.start + 50.0)
-            .max((w_range.end - w_range.start + 50.0) * viewport.height / viewport.width);
-
-        let mut camera = SeamViewCamera {
-            pos: seam_view.camera_pos,
-            span_y: span_y as f64,
-            right_dir: screen_right,
-        };
-
         let screen_mouse_pos =
             get_norm_mouse_pos(ui.io().mouse_pos, ui.window_pos(), ui.window_size());
         let screen_mouse_pos = Point3f::new(screen_mouse_pos.0, screen_mouse_pos.1, 0.0);
+
+        let mut camera = get_seam_view_camera(seam_view, &viewport);
         let mut world_mouse_pos = seam_view_screen_to_world(&camera, &viewport, screen_mouse_pos);
 
         if ui.is_mouse_clicked(MouseButton::Left)
@@ -214,11 +200,27 @@ impl App {
         if ui.is_mouse_down(MouseButton::Left) {
             if let Some(mouse_drag_start_pos) = seam_view.mouse_drag_start_pos {
                 seam_view.camera_pos += mouse_drag_start_pos - world_mouse_pos;
-                camera.pos = seam_view.camera_pos;
+                camera = get_seam_view_camera(seam_view, &viewport);
                 world_mouse_pos = seam_view_screen_to_world(&camera, &viewport, screen_mouse_pos);
             }
         } else {
             seam_view.mouse_drag_start_pos = None;
+        }
+
+        if !ui.is_any_item_hovered()
+            && screen_mouse_pos.x.abs() <= 1.0
+            && screen_mouse_pos.y.abs() <= 1.0
+        {
+            seam_view.zoom += ui.io().mouse_wheel as f64 / 5.0;
+
+            // Move camera to keep world mouse pos the same
+            camera = get_seam_view_camera(seam_view, &viewport);
+            let new_world_mouse_pos =
+                seam_view_screen_to_world(&camera, &viewport, screen_mouse_pos);
+            seam_view.camera_pos += world_mouse_pos - new_world_mouse_pos;
+
+            camera = get_seam_view_camera(seam_view, &viewport);
+            world_mouse_pos = seam_view_screen_to_world(&camera, &viewport, screen_mouse_pos);
         }
 
         let progress = self.seam_processor.seam_progress(&seam);
@@ -247,6 +249,34 @@ impl App {
     }
 }
 
+fn get_seam_view_camera(seam_view: &mut SeamViewState, viewport: &Viewport) -> SeamViewCamera {
+    let seam = &seam_view.seam;
+
+    let w_axis = match seam.edge1.projection_axis {
+        ProjectionAxis::X => Vector3::z(),
+        ProjectionAxis::Z => Vector3::x(),
+    };
+    let screen_right = match seam.edge1.orientation {
+        Orientation::Positive => -w_axis,
+        Orientation::Negative => w_axis,
+    };
+
+    let initial_span_y = *seam_view.initial_span_y.get_or_insert_with(|| {
+        let w_range = seam.edge1.w_range();
+        let y_range = seam.edge1.y_range();
+        (y_range.end - y_range.start + 50.0)
+            .max((w_range.end - w_range.start + 50.0) * viewport.height / viewport.width)
+            as f64
+    });
+    let span_y = initial_span_y / 2.0f64.powf(seam_view.zoom);
+
+    SeamViewCamera {
+        pos: seam_view.camera_pos,
+        span_y,
+        right_dir: screen_right,
+    }
+}
+
 fn main() {
     futures::executor::block_on(async {
         let instance = wgpu::Instance::new(wgpu::BackendBit::PRIMARY);
@@ -254,7 +284,6 @@ fn main() {
         let event_loop = EventLoop::new();
         let window = WindowBuilder::new()
             .with_title("seams legit 2.0")
-            .with_inner_size(PhysicalSize::new(800, 600))
             .build(&event_loop)
             .unwrap();
 
