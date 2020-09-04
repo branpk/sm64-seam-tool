@@ -1,7 +1,7 @@
 use crate::{
     float_range::RangeF32,
     game_state::{GameState, Surface},
-    seam::{RangeStatus, Seam},
+    seam::{PointStatus, RangeStatus, Seam},
     spatial_partition::SpatialPartition,
 };
 use rayon::prelude::*;
@@ -111,6 +111,14 @@ impl SeamProgress {
                 }
             }
             self.complete.push((range, status));
+        }
+    }
+
+    fn total_range(&self) -> RangeF32 {
+        if let Some((segment, _)) = self.complete.first() {
+            RangeF32::inclusive_exclusive(segment.start, self.remaining.end)
+        } else {
+            self.remaining
         }
     }
 }
@@ -231,6 +239,20 @@ impl SeamProcessor {
         if let Some((focused_request, focused_progress)) = &self.focused_seam {
             if &focused_request.seam == seam {
                 progress = focused_progress.clone();
+                let total_range = progress.total_range();
+                if w_range.start < total_range.start {
+                    progress.complete.insert(
+                        0,
+                        (
+                            RangeF32::inclusive_exclusive(w_range.start, total_range.start),
+                            RangeStatus::Unchecked,
+                        ),
+                    );
+                }
+                if w_range.end > total_range.end {
+                    progress.remaining =
+                        RangeF32::inclusive_exclusive(progress.remaining.start, w_range.end);
+                }
             }
             if focused_request == &request {
                 return progress;
