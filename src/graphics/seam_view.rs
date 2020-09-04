@@ -6,6 +6,7 @@ use super::{
 };
 use crate::geo::{point_f32_to_f64, Matrix4f, Point3f, Vector3f};
 use bytemuck::cast_slice;
+use nalgebra::{Point3, Vector3};
 use wgpu::util::DeviceExt;
 
 pub struct SeamViewSceneBundle<'a> {
@@ -100,45 +101,33 @@ impl<'a> SeamViewSceneBundle<'a> {
 fn get_seam_vertices(scene: &SeamViewScene) -> Vec<Vertex> {
     let mut vertices = Vec::new();
 
-    // let slope = seam_info.seam.edge1.slope();
+    // let slope = scene.seam.seam.edge1.slope() as f64;
     // let thickness = 0.03 * (slope * slope + 1.0).sqrt();
-    // let screen_thickness_offset = thickness * Vector3f::y();
-    // let thickness_offset = proj_matrix
-    //     .pseudo_inverse(0.0)
-    //     .unwrap_or(nalgebra::zero())
-    //     .transform_vector(&screen_thickness_offset);
+    // let screen_thickness_offset = thickness * Vector3::y();
+    let thickness_offset = 0.03 * Vector3::y() * scene.camera.span_y / 2.0; //screen_thickness_offset * scene.camera.span_y / 2.0;
 
-    let vertex = |pos: Point3f, color: [f32; 4]| -> Vertex {
-        let screen_pos =
-            seam_view_world_to_screen(&scene.camera, &scene.viewport, point_f32_to_f64(pos));
+    let vertex = |pos: Point3<f64>, color: [f32; 4]| -> Vertex {
+        let screen_pos = seam_view_world_to_screen(&scene.camera, &scene.viewport, pos);
         Vertex::new(screen_pos, color)
     };
 
-    // for segment in &scene.seam.segments {
-    //     let color = seam_segment_color(segment.status);
+    for segment in &scene.seam.segments {
+        let color = seam_segment_color(segment.status);
 
-    //     let endpoint1 = segment.endpoint1();
-    //     let endpoint2 = segment.endpoint2();
+        let endpoint1 = point_f32_to_f64(segment.endpoint1());
+        let endpoint2 = point_f32_to_f64(segment.endpoint2());
 
-    //     // vertices.extend_from_slice(&[
-    //     //     Vertex::new(endpoint1 - thickness_offset, color),
-    //     //     Vertex::new(endpoint2 - thickness_offset, color),
-    //     //     Vertex::new(endpoint1 + thickness_offset, color),
-    //     // ]);
-    //     // vertices.extend_from_slice(&[
-    //     //     Vertex::new(endpoint2 - thickness_offset, color),
-    //     //     Vertex::new(endpoint1 + thickness_offset, color),
-    //     //     Vertex::new(endpoint2 + thickness_offset, color),
-    //     // ]);
-
-    let endpoint1 = scene.seam.seam.endpoint1();
-    let endpoint2 = scene.seam.seam.endpoint2();
-    vertices.extend(&[
-        vertex(endpoint1, [1.0, 1.0, 1.0, 1.0]),
-        vertex(endpoint2, [1.0, 1.0, 1.0, 1.0]),
-        vertex(endpoint1 + 50.0 * Vector3f::y(), [1.0, 1.0, 1.0, 1.0]),
-    ]);
-    // }
+        vertices.extend_from_slice(&[
+            vertex(endpoint1 - thickness_offset, color),
+            vertex(endpoint2 - thickness_offset, color),
+            vertex(endpoint1 + thickness_offset, color),
+        ]);
+        vertices.extend_from_slice(&[
+            vertex(endpoint2 - thickness_offset, color),
+            vertex(endpoint1 + thickness_offset, color),
+            vertex(endpoint2 + thickness_offset, color),
+        ]);
+    }
 
     vertices
 }
