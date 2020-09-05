@@ -9,6 +9,7 @@ pub struct Pipelines {
     pub wall_hitbox_depth_pass: wgpu::RenderPipeline,
     pub wall_hitbox_outline: wgpu::RenderPipeline,
     pub seam: wgpu::RenderPipeline,
+    pub grid_line: wgpu::RenderPipeline,
 }
 
 impl Pipelines {
@@ -47,7 +48,18 @@ impl Pipelines {
             wgpu::PrimitiveTopology::LineList,
         );
 
-        let seam = create_seam_pipeline(device, &transform_bind_group_layout, output_format);
+        let seam = create_color_pipeline(
+            device,
+            &transform_bind_group_layout,
+            output_format,
+            wgpu::PrimitiveTopology::TriangleList,
+        );
+        let grid_line = create_color_pipeline(
+            device,
+            &transform_bind_group_layout,
+            output_format,
+            wgpu::PrimitiveTopology::LineList,
+        );
 
         Self {
             surface,
@@ -56,6 +68,7 @@ impl Pipelines {
             wall_hitbox_depth_pass,
             wall_hitbox_outline,
             seam,
+            grid_line,
         }
     }
 }
@@ -205,10 +218,11 @@ fn create_wall_hitbox_pipeline(
     })
 }
 
-fn create_seam_pipeline(
+fn create_color_pipeline(
     device: &wgpu::Device,
     transform_bind_group_layout: &wgpu::BindGroupLayout,
     output_format: wgpu::TextureFormat,
+    primitive_topology: wgpu::PrimitiveTopology,
 ) -> wgpu::RenderPipeline {
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: None,
@@ -230,7 +244,7 @@ fn create_seam_pipeline(
             entry_point: "main",
         }),
         rasterization_state: None,
-        primitive_topology: wgpu::PrimitiveTopology::TriangleList,
+        primitive_topology,
         color_states: &[wgpu::ColorStateDescriptor {
             format: output_format,
             alpha_blend: wgpu::BlendDescriptor::REPLACE,

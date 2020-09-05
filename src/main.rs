@@ -81,7 +81,7 @@ impl App {
     fn new() -> Self {
         App {
             // FIXME: Set denorm setting (or handle manually)
-            process: Process::attach(54564, 0x008EBA80),
+            process: Process::attach(96740, 0x008EBA80),
             globals: Globals::US,
             sync_to_game: false,
             seam_processor: SeamProcessor::new(),
@@ -233,8 +233,8 @@ impl App {
         let left_w = (w - span_w / 2.0) as f32;
         let right_w = (w + span_w / 2.0) as f32;
 
-        let top_y = (camera.pos.y - camera.span_y / 2.0) as f32;
-        let bottom_y = (camera.pos.y + camera.span_y / 2.0) as f32;
+        let top_y = (camera.pos.y + camera.span_y / 2.0) as f32;
+        let bottom_y = (camera.pos.y - camera.span_y / 2.0) as f32;
         let top_w = seam.edge1.approx_w(top_y);
         let bottom_w = seam.edge1.approx_w(bottom_y);
 
@@ -248,10 +248,31 @@ impl App {
             self.seam_processor
                 .focused_seam_progress(&seam, visible_w_range, segment_length);
 
+        let mut vertical_grid_lines = Vec::new();
+        let mut horizontal_grid_lines = Vec::new();
+
+        let (left_w_range, right_w_range) = RangeF32::inclusive_exclusive(left_w, right_w)
+            .cut_out(&RangeF32::inclusive_exclusive(-1.0, 1.0));
+        if left_w_range.count() + right_w_range.count() < 200 {
+            for w in left_w_range.iter().chain(right_w_range.iter()) {
+                vertical_grid_lines.push(Point3::new(w as f64, 0.0, w as f64));
+            }
+        }
+
+        let (left_y_range, right_y_range) = RangeF32::inclusive_exclusive(bottom_y, top_y)
+            .cut_out(&RangeF32::inclusive_exclusive(-1.0, 1.0));
+        if left_y_range.count() + right_y_range.count() < 200 {
+            for y in left_y_range.iter().chain(right_y_range.iter()) {
+                horizontal_grid_lines.push(Point3::new(0.0, y as f64, 0.0));
+            }
+        }
+
         let scene = SeamViewScene {
             viewport,
             camera,
             seam: get_segment_info(&seam, &progress),
+            vertical_grid_lines,
+            horizontal_grid_lines,
         };
 
         let close_seam_view = ui.button(im_str!("Close"), [0.0, 0.0]);

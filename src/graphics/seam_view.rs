@@ -1,6 +1,6 @@
 use super::{
     pipelines::Pipelines,
-    seam_view_world_to_screen,
+    seam_view_world_to_screen, upload_vertex_buffer,
     util::{birds_eye_transforms, seam_segment_color},
     SeamInfo, SeamViewCamera, SeamViewScene, Vertex,
 };
@@ -13,6 +13,7 @@ pub struct SeamViewSceneBundle<'a> {
     scene: &'a SeamViewScene,
     transform_bind_group: wgpu::BindGroup,
     seam_vertex_buffer: (usize, wgpu::Buffer),
+    grid_line_vertex_buffer: (usize, wgpu::Buffer),
 }
 
 impl<'a> SeamViewSceneBundle<'a> {
@@ -49,19 +50,16 @@ impl<'a> SeamViewSceneBundle<'a> {
         });
 
         let seam_vertices = get_seam_vertices(scene);
-        let seam_vertex_buffer = (
-            seam_vertices.len(),
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: None,
-                contents: cast_slice(&seam_vertices),
-                usage: wgpu::BufferUsage::VERTEX,
-            }),
-        );
+        let seam_vertex_buffer = upload_vertex_buffer(device, &seam_vertices);
+
+        let grid_line_vertices = get_grid_line_vertices(scene);
+        let grid_line_vertex_buffer = upload_vertex_buffer(device, &grid_line_vertices);
 
         Self {
             scene,
             transform_bind_group,
             seam_vertex_buffer,
+            grid_line_vertex_buffer,
         }
     }
 
@@ -91,6 +89,10 @@ impl<'a> SeamViewSceneBundle<'a> {
         );
 
         render_pass.set_bind_group(0, &self.transform_bind_group, &[]);
+
+        render_pass.set_pipeline(&pipelines.grid_line);
+        render_pass.set_vertex_buffer(0, self.grid_line_vertex_buffer.1.slice(..));
+        render_pass.draw(0..self.grid_line_vertex_buffer.0 as u32, 0..1);
 
         render_pass.set_pipeline(&pipelines.seam);
         render_pass.set_vertex_buffer(0, self.seam_vertex_buffer.1.slice(..));
@@ -127,6 +129,29 @@ fn get_seam_vertices(scene: &SeamViewScene) -> Vec<Vertex> {
             vertex(endpoint1 + thickness_offset, color),
             vertex(endpoint2 + thickness_offset, color),
         ]);
+    }
+
+    vertices
+}
+
+fn get_grid_line_vertices(scene: &SeamViewScene) -> Vec<Vertex> {
+    let mut vertices = Vec::new();
+    let color = [0.8, 0.8, 0.8, 1.0];
+
+    for &world_pos in &scene.vertical_grid_lines {
+        let screen_pos = seam_view_world_to_screen(&scene.camera, &scene.viewport, world_pos);
+        vertices.extend(&[
+            Vertex::new(Point3f::new(screen_pos.x, -1.0, screen_pos.z), color),
+            Vertex::new(Point3f::new(screen_pos.x, 1.0, screen_pos.z), color),
+        ])
+    }
+
+    for &world_pos in &scene.horizontal_grid_lines {
+        let screen_pos = seam_view_world_to_screen(&scene.camera, &scene.viewport, world_pos);
+        vertices.extend(&[
+            Vertex::new(Point3f::new(-1.0, screen_pos.y, screen_pos.z), color),
+            Vertex::new(Point3f::new(1.0, screen_pos.y, screen_pos.z), color),
+        ])
     }
 
     vertices

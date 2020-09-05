@@ -29,6 +29,8 @@ pub struct SeamViewScene {
     pub viewport: Viewport,
     pub camera: SeamViewCamera,
     pub seam: SeamInfo,
+    pub vertical_grid_lines: Vec<Point3<f64>>,
+    pub horizontal_grid_lines: Vec<Point3<f64>>,
 }
 
 #[derive(Debug, Clone)]

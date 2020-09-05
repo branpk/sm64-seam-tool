@@ -4,8 +4,10 @@ use crate::{
     geo::{direction_to_pitch_yaw, Matrix4f, Point3f, Vector3f, Vector4f},
     seam::RangeStatus,
 };
+use bytemuck::{cast_slice, Pod};
 use nalgebra::{distance, Point3, Vector3};
 use std::f32::consts::PI;
+use wgpu::util::DeviceExt;
 
 pub fn rotate_transforms(camera: &RotateCamera, viewport: &Viewport) -> (Matrix4f, Matrix4f) {
     let camera_pos = Point3f::new(camera.pos[0], camera.pos[1], camera.pos[2]);
@@ -93,4 +95,15 @@ pub fn seam_segment_color(status: RangeStatus) -> [f32; 4] {
         RangeStatus::Unchecked => [0.1, 0.1, 0.1, 1.0],
         RangeStatus::Skipped => [1.0, 0.0, 0.0, 1.0],
     }
+}
+
+pub fn upload_vertex_buffer<T: Pod>(device: &wgpu::Device, data: &[T]) -> (usize, wgpu::Buffer) {
+    (
+        data.len(),
+        device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: None,
+            contents: cast_slice(data),
+            usage: wgpu::BufferUsage::VERTEX,
+        }),
+    )
 }

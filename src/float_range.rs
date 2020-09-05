@@ -66,6 +66,11 @@ impl RangeF32 {
         self.end <= self.start
     }
 
+    pub fn count(&self) -> usize {
+        // TODO: Optimize
+        self.iter().count()
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = f32> {
         // Could be done more efficiently by chaining two integer ranges (negative then positive)
         let end = self.end;
@@ -74,6 +79,13 @@ impl RangeF32 {
 
     pub fn intersect(&self, other: &Self) -> Self {
         RangeF32::inclusive_exclusive(self.start.max(other.start), self.end.min(other.end))
+    }
+
+    pub fn cut_out(&self, other: &Self) -> (Self, Self) {
+        (
+            RangeF32::inclusive_exclusive(self.start, other.start.min(self.end)),
+            RangeF32::inclusive_exclusive(other.end.max(self.start), self.end),
+        )
     }
 
     pub fn split(&self, segment_length: f32) -> impl Iterator<Item = Self> {
