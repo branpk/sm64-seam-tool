@@ -1,5 +1,5 @@
 use crate::{
-    float_range::RangeF32,
+    float_range::{step_f32, RangeF32},
     game_state::{GameState, Surface},
     seam::{PointStatus, RangeStatus, Seam},
     spatial_partition::SpatialPartition,
@@ -90,7 +90,9 @@ impl SeamProgress {
             return None;
         }
 
-        let mut split = (self.remaining.start + self.segment_length).min(self.remaining.end);
+        let mut split = (self.remaining.start + self.segment_length)
+            .max(step_f32(self.remaining.start))
+            .min(self.remaining.end);
         if self.remaining.start < -1.0 && split > -1.0 {
             split = -1.0;
         }

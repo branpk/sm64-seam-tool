@@ -81,7 +81,7 @@ impl App {
     fn new() -> Self {
         App {
             // FIXME: Set denorm setting (or handle manually)
-            process: Process::attach(96740, 0x008EBA80),
+            process: Process::attach(29776, 0x008EBA80),
             globals: Globals::US,
             sync_to_game: false,
             seam_processor: SeamProcessor::new(),
@@ -253,7 +253,7 @@ impl App {
 
         let (left_w_range, right_w_range) = RangeF32::inclusive_exclusive(left_w, right_w)
             .cut_out(&RangeF32::inclusive_exclusive(-1.0, 1.0));
-        if left_w_range.count() + right_w_range.count() < 200 {
+        if left_w_range.count() + right_w_range.count() < 100 {
             for w in left_w_range.iter().chain(right_w_range.iter()) {
                 vertical_grid_lines.push(Point3::new(w as f64, 0.0, w as f64));
             }
@@ -261,7 +261,7 @@ impl App {
 
         let (left_y_range, right_y_range) = RangeF32::inclusive_exclusive(bottom_y, top_y)
             .cut_out(&RangeF32::inclusive_exclusive(-1.0, 1.0));
-        if left_y_range.count() + right_y_range.count() < 200 {
+        if left_y_range.count() + right_y_range.count() < 100 {
             for y in left_y_range.iter().chain(right_y_range.iter()) {
                 horizontal_grid_lines.push(Point3::new(0.0, y as f64, 0.0));
             }

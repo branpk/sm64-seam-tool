@@ -1,5 +1,7 @@
 use std::iter;
 
+// FIXME: Denorms
+
 /// Compute the next float larger than x.
 pub fn step_f32(x: f32) -> f32 {
     let bits = x.to_bits();
@@ -67,8 +69,32 @@ impl RangeF32 {
     }
 
     pub fn count(&self) -> usize {
-        // TODO: Optimize
-        self.iter().count()
+        if self.is_empty() {
+            return 0;
+        }
+
+        // FIXME: Denorms
+        let mut positive = 0;
+        let mut negative = 0;
+
+        let start_bits = self.start.to_bits();
+        let end_bits = self.end.to_bits();
+
+        if (end_bits & (1 << 31)) == 0 {
+            positive += end_bits as usize;
+        }
+        if (start_bits & (1 << 31)) == 0 {
+            positive -= start_bits as usize;
+        }
+
+        if (start_bits & (1 << 31)) != 0 {
+            negative += (start_bits & !(1 << 31)) as usize;
+        }
+        if (end_bits & (1 << 31)) != 0 {
+            negative -= (end_bits & !(1 << 31)) as usize;
+        }
+
+        positive + negative
     }
 
     pub fn iter(&self) -> impl Iterator<Item = f32> {
