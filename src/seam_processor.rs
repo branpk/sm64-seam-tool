@@ -323,24 +323,14 @@ fn processor_thread(
                 segments.push(segment);
             }
 
-            let segment_statuses: Vec<(RangeF32, RangeStatus)> = segments
+            let segment_statuses: Vec<(RangeF32, (usize, RangeStatus))> = segments
                 .par_iter()
                 .map(|segment| (*segment, request.seam.check_range(*segment)))
                 .collect();
 
             let num_interesting_points: usize = segment_statuses
                 .iter()
-                .map(|(_, status)| {
-                    if let RangeStatus::Checked {
-                        num_interesting_points,
-                        ..
-                    } = status
-                    {
-                        *num_interesting_points
-                    } else {
-                        0
-                    }
-                })
+                .map(|(_, (num_interesting_points, _))| num_interesting_points)
                 .sum();
 
             if request.is_focused && num_interesting_points <= MAX_POINTS_RECORDED_INDIVIDUALLY {
@@ -356,7 +346,7 @@ fn processor_thread(
                     .collect();
                 let _ = output.send((request.clone(), SeamOutput::Points(SeamPoints { points })));
             } else {
-                for (segment, status) in segment_statuses {
+                for (segment, (_, status)) in segment_statuses {
                     progress.complete_segment(segment, status);
                     let _ = output.send((request.clone(), SeamOutput::Segments(progress.clone())));
                 }

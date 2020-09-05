@@ -13,11 +13,7 @@ pub enum PointStatus {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RangeStatus {
-    Checked {
-        has_gap: bool,
-        has_overlap: bool,
-        num_interesting_points: usize,
-    },
+    Checked { has_gap: bool, has_overlap: bool },
     Unchecked,
     Skipped,
 }
@@ -91,10 +87,10 @@ impl Seam {
         (y0, PointStatus::None)
     }
 
-    pub fn check_range(&self, w_range: RangeF32) -> RangeStatus {
+    pub fn check_range(&self, w_range: RangeF32) -> (usize, RangeStatus) {
         let mut has_gap = false;
         let mut has_overlap = false;
-        let mut num_interesting_points = 0;
+        let mut num_interesting_points = w_range.count();
 
         for w in w_range.iter() {
             match self.check_point(w).1 {
@@ -110,11 +106,13 @@ impl Seam {
             }
         }
 
-        RangeStatus::Checked {
-            has_gap,
-            has_overlap,
+        (
             num_interesting_points,
-        }
+            RangeStatus::Checked {
+                has_gap,
+                has_overlap,
+            },
+        )
     }
 
     pub fn approx_point_at_w(&self, w: f32) -> [f32; 3] {
