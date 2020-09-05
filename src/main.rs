@@ -238,8 +238,8 @@ impl App {
 
         let top_y = (camera.pos.y + margin * camera.span_y / 2.0) as f32;
         let bottom_y = (camera.pos.y - margin * camera.span_y / 2.0) as f32;
-        let top_w = seam.edge1.approx_w(top_y);
-        let bottom_w = seam.edge1.approx_w(bottom_y);
+        let top_w = seam.edge1.approx_w(top_y) - 1.0;
+        let bottom_w = seam.edge1.approx_w(bottom_y) + 1.0;
 
         // TODO: Compute this better to avoid things disappearing when zooming in
         let min_w = (left_w.max(top_w.min(bottom_w)).max(seam.w_range().start) / segment_length)
