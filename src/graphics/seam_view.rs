@@ -2,7 +2,7 @@ use super::{
     pipelines::Pipelines,
     seam_view_world_to_screen, upload_vertex_buffer,
     util::{birds_eye_transforms, seam_segment_color},
-    SeamInfo, SeamViewCamera, SeamViewScene, Vertex,
+    FocusedSeamData, SeamInfo, SeamSegment, SeamViewCamera, SeamViewScene, Vertex,
 };
 use crate::geo::{point_f32_to_f64, Matrix4f, Point3f, Vector3f};
 use bytemuck::cast_slice;
@@ -12,7 +12,7 @@ use wgpu::util::DeviceExt;
 pub struct SeamViewSceneBundle<'a> {
     scene: &'a SeamViewScene,
     transform_bind_group: wgpu::BindGroup,
-    seam_vertex_buffer: (usize, wgpu::Buffer),
+    seam_segment_vertex_buffer: (usize, wgpu::Buffer),
     grid_line_vertex_buffer: (usize, wgpu::Buffer),
 }
 
@@ -49,8 +49,12 @@ impl<'a> SeamViewSceneBundle<'a> {
             ],
         });
 
-        let seam_vertices = get_seam_vertices(scene);
-        let seam_vertex_buffer = upload_vertex_buffer(device, &seam_vertices);
+        let seam_segment_vertices = if let FocusedSeamData::Segments(segments) = &scene.seam.data {
+            get_seam_segment_vertices(scene, segments)
+        } else {
+            Vec::new()
+        };
+        let seam_segment_vertex_buffer = upload_vertex_buffer(device, &seam_segment_vertices);
 
         let grid_line_vertices = get_grid_line_vertices(scene);
         let grid_line_vertex_buffer = upload_vertex_buffer(device, &grid_line_vertices);
@@ -58,7 +62,7 @@ impl<'a> SeamViewSceneBundle<'a> {
         Self {
             scene,
             transform_bind_group,
-            seam_vertex_buffer,
+            seam_segment_vertex_buffer,
             grid_line_vertex_buffer,
         }
     }
@@ -95,12 +99,12 @@ impl<'a> SeamViewSceneBundle<'a> {
         render_pass.draw(0..self.grid_line_vertex_buffer.0 as u32, 0..1);
 
         render_pass.set_pipeline(&pipelines.seam);
-        render_pass.set_vertex_buffer(0, self.seam_vertex_buffer.1.slice(..));
-        render_pass.draw(0..self.seam_vertex_buffer.0 as u32, 0..1);
+        render_pass.set_vertex_buffer(0, self.seam_segment_vertex_buffer.1.slice(..));
+        render_pass.draw(0..self.seam_segment_vertex_buffer.0 as u32, 0..1);
     }
 }
 
-fn get_seam_vertices(scene: &SeamViewScene) -> Vec<Vertex> {
+fn get_seam_segment_vertices(scene: &SeamViewScene, segments: &[SeamSegment]) -> Vec<Vertex> {
     let mut vertices = Vec::new();
 
     // let slope = scene.seam.seam.edge1.slope() as f64;
@@ -113,7 +117,7 @@ fn get_seam_vertices(scene: &SeamViewScene) -> Vec<Vertex> {
         Vertex::new(screen_pos, color)
     };
 
-    for segment in &scene.seam.segments {
+    for segment in segments {
         let color = seam_segment_color(segment.status);
 
         let endpoint1 = point_f32_to_f64(segment.endpoint1());

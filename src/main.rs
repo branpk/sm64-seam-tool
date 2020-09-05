@@ -26,7 +26,8 @@ use std::{
     time::{Duration, Instant},
 };
 use util::{
-    build_game_view_scene, find_hovered_seam, get_mouse_ray, get_norm_mouse_pos, get_segment_info,
+    build_game_view_scene, find_hovered_seam, get_focused_seam_info, get_mouse_ray,
+    get_norm_mouse_pos, get_segment_info,
 };
 use winit::{
     dpi::PhysicalSize,
@@ -270,7 +271,7 @@ impl App {
         let scene = SeamViewScene {
             viewport,
             camera,
-            seam: get_segment_info(&seam, &progress),
+            seam: get_focused_seam_info(&seam, &progress),
             vertical_grid_lines,
             horizontal_grid_lines,
         };

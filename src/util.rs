@@ -1,12 +1,12 @@
 use crate::{
-    edge::{Edge, ProjectedPoint},
+    edge::{Edge, ProjectedPoint, ProjectionAxis},
     game_state::GameState,
     geo::{direction_to_pitch_yaw, pitch_yaw_to_direction, Point3f, Vector3f},
     graphics::{self, Camera, GameViewScene, RotateCamera, SurfaceType, Viewport},
     seam::Seam,
-    seam_processor::{SeamProcessor, SeamProgress},
+    seam_processor::{SeamOutput, SeamProcessor, SeamProgress},
 };
-use graphics::{SeamInfo, SeamSegment};
+use graphics::{FocusedSeamData, FocusedSeamInfo, SeamInfo, SeamSegment};
 use std::{collections::HashSet, f32::consts::PI};
 
 pub fn get_norm_mouse_pos(
@@ -199,5 +199,33 @@ pub fn get_segment_info(seam: &Seam, progress: &SeamProgress) -> SeamInfo {
     SeamInfo {
         seam: seam.clone(),
         segments,
+    }
+}
+
+pub fn get_focused_seam_info(seam: &Seam, output: &SeamOutput) -> FocusedSeamInfo {
+    match output {
+        SeamOutput::Points(points) => FocusedSeamInfo {
+            seam: seam.clone(),
+            data: FocusedSeamData::Points(
+                points
+                    .points
+                    .iter()
+                    .map(|(point, status)| {
+                        let pos = match seam.edge1.projection_axis {
+                            ProjectionAxis::X => Point3f::new(0.0, point.y, point.w),
+                            ProjectionAxis::Z => Point3f::new(point.w, point.y, 0.0),
+                        };
+                        (pos, *status)
+                    })
+                    .collect(),
+            ),
+        },
+        SeamOutput::Segments(segments) => {
+            let segments = get_segment_info(seam, segments).segments;
+            FocusedSeamInfo {
+                seam: seam.clone(),
+                data: FocusedSeamData::Segments(segments),
+            }
+        }
     }
 }

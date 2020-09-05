@@ -13,7 +13,11 @@ pub enum PointStatus {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RangeStatus {
-    Checked { has_gap: bool, has_overlap: bool },
+    Checked {
+        has_gap: bool,
+        has_overlap: bool,
+        num_interesting_points: usize,
+    },
     Unchecked,
     Skipped,
 }
@@ -64,7 +68,7 @@ impl Seam {
         self.edge1.w_range().intersect(&self.edge2.w_range())
     }
 
-    pub fn check_point(&self, w: f32) -> PointStatus {
+    pub fn check_point(&self, w: f32) -> (f32, PointStatus) {
         let y0 = self.edge1.approx_y(w);
 
         // TODO: Verify that we go far enough to be within each wall separately
@@ -77,24 +81,31 @@ impl Seam {
             let in2 = self.edge2.accepts_projected(point);
 
             if in1 && in2 {
-                return PointStatus::Overlap;
+                return (y, PointStatus::Overlap);
             }
             if !in1 && !in2 {
-                return PointStatus::Gap;
+                return (y, PointStatus::Gap);
             }
         }
 
-        PointStatus::None
+        (y0, PointStatus::None)
     }
 
     pub fn check_range(&self, w_range: RangeF32) -> RangeStatus {
         let mut has_gap = false;
         let mut has_overlap = false;
+        let mut num_interesting_points = 0;
 
         for w in w_range.iter() {
-            match self.check_point(w) {
-                PointStatus::Gap => has_gap = true,
-                PointStatus::Overlap => has_overlap = true,
+            match self.check_point(w).1 {
+                PointStatus::Gap => {
+                    has_gap = true;
+                    num_interesting_points += 1;
+                }
+                PointStatus::Overlap => {
+                    has_overlap = true;
+                    num_interesting_points += 1;
+                }
                 PointStatus::None => {}
             }
         }
@@ -102,6 +113,7 @@ impl Seam {
         RangeStatus::Checked {
             has_gap,
             has_overlap,
+            num_interesting_points,
         }
     }
 

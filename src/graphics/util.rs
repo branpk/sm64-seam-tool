@@ -79,18 +79,22 @@ pub fn seam_segment_color(status: RangeStatus) -> [f32; 4] {
         RangeStatus::Checked {
             has_gap: false,
             has_overlap: false,
+            ..
         } => [1.0, 1.0, 1.0, 1.0],
         RangeStatus::Checked {
             has_gap: true,
             has_overlap: false,
+            ..
         } => [0.0, 1.0, 0.0, 1.0],
         RangeStatus::Checked {
             has_gap: false,
             has_overlap: true,
+            ..
         } => [0.0, 0.0, 1.0, 1.0],
         RangeStatus::Checked {
             has_gap: true,
             has_overlap: true,
+            ..
         } => [0.0, 1.0, 1.0, 1.0],
         RangeStatus::Unchecked => [0.1, 0.1, 0.1, 1.0],
         RangeStatus::Skipped => [1.0, 0.0, 0.0, 1.0],

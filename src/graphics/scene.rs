@@ -1,7 +1,7 @@
 use crate::{
     edge::ProjectedPoint,
     geo::{Point3f, Vector3f},
-    seam::{RangeStatus, Seam},
+    seam::{PointStatus, RangeStatus, Seam},
 };
 use nalgebra::{Point3, Vector3};
 use std::collections::HashSet;
@@ -28,7 +28,7 @@ pub struct GameViewScene {
 pub struct SeamViewScene {
     pub viewport: Viewport,
     pub camera: SeamViewCamera,
-    pub seam: SeamInfo,
+    pub seam: FocusedSeamInfo,
     pub vertical_grid_lines: Vec<Point3<f64>>,
     pub horizontal_grid_lines: Vec<Point3<f64>>,
 }
@@ -129,4 +129,16 @@ impl SeamSegment {
     pub fn endpoint2(&self) -> Point3f {
         Point3f::new(self.endpoint2[0], self.endpoint2[1], self.endpoint2[2])
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct FocusedSeamInfo {
+    pub seam: Seam,
+    pub data: FocusedSeamData,
+}
+
+#[derive(Debug, Clone)]
+pub enum FocusedSeamData {
+    Points(Vec<(Point3f, PointStatus)>),
+    Segments(Vec<SeamSegment>),
 }

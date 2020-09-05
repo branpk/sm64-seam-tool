@@ -1,4 +1,5 @@
 use crate::{
+    edge::ProjectedPoint,
     float_range::{step_f32, RangeF32},
     game_state::{GameState, Surface},
     seam::{PointStatus, RangeStatus, Seam},
@@ -17,6 +18,7 @@ use std::{
 };
 
 const DEFAULT_SEGMENT_LENGTH: f32 = 5.0;
+const MAX_POINTS_RECORDED_INDIVIDUALLY: usize = 10_000;
 
 #[derive(Debug, Clone, PartialEq)]
 struct SeamRequest {
@@ -45,6 +47,17 @@ impl SeamRequest {
             is_focused: true,
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum SeamOutput {
+    Points(SeamPoints),
+    Segments(SeamProgress),
+}
+
+#[derive(Debug, Clone)]
+pub struct SeamPoints {
+    pub points: Vec<(ProjectedPoint<f32>, PointStatus)>,
 }
 
 #[derive(Debug, Clone)]
@@ -129,8 +142,8 @@ pub struct SeamProcessor {
     active_seams: Vec<Seam>,
     progress: HashMap<Seam, SeamProgress>,
     queue: Arc<Mutex<VecDeque<SeamRequest>>>,
-    output_receiver: Receiver<(SeamRequest, SeamProgress)>,
-    focused_seam: Option<(SeamRequest, SeamProgress)>,
+    output_receiver: Receiver<(SeamRequest, SeamOutput)>,
+    focused_seam: Option<(SeamRequest, SeamOutput)>,
 }
 
 impl SeamProcessor {
@@ -224,7 +237,11 @@ impl SeamProcessor {
                     }
                 }
             } else {
-                self.progress.insert(request.seam, progress);
+                if let SeamOutput::Segments(progress) = progress {
+                    self.progress.insert(request.seam, progress);
+                } else {
+                    panic!("invalid thread output");
+                }
             }
         }
     }
@@ -234,27 +251,28 @@ impl SeamProcessor {
         seam: &Seam,
         w_range: RangeF32,
         segment_length: f32,
-    ) -> SeamProgress {
+    ) -> SeamOutput {
         let request = SeamRequest::focused(seam.clone(), w_range, segment_length);
-        let mut progress = SeamProgress::new(w_range, segment_length);
+        let mut progress = SeamOutput::Segments(SeamProgress::new(w_range, segment_length));
 
         if let Some((focused_request, focused_progress)) = &self.focused_seam {
             if &focused_request.seam == seam {
                 progress = focused_progress.clone();
-                let total_range = progress.total_range();
-                if w_range.start < total_range.start {
-                    progress.complete.insert(
-                        0,
-                        (
-                            RangeF32::inclusive_exclusive(w_range.start, total_range.start),
-                            RangeStatus::Unchecked,
-                        ),
-                    );
-                }
-                if w_range.end > total_range.end {
-                    progress.remaining =
-                        RangeF32::inclusive_exclusive(progress.remaining.start, w_range.end);
-                }
+                // TODO: Extend progress range
+                // let total_range = progress.total_range();
+                // if w_range.start < total_range.start {
+                //     progress.complete.insert(
+                //         0,
+                //         (
+                //             RangeF32::inclusive_exclusive(w_range.start, total_range.start),
+                //             RangeStatus::Unchecked,
+                //         ),
+                //     );
+                // }
+                // if w_range.end > total_range.end {
+                //     progress.remaining =
+                //         RangeF32::inclusive_exclusive(progress.remaining.start, w_range.end);
+                // }
             }
             if focused_request == &request {
                 return progress;
@@ -293,7 +311,7 @@ impl SeamProcessor {
 
 fn processor_thread(
     queue: Arc<Mutex<VecDeque<SeamRequest>>>,
-    output: Sender<(SeamRequest, SeamProgress)>,
+    output: Sender<(SeamRequest, SeamOutput)>,
 ) {
     loop {
         let head = queue.lock().unwrap().pop_front();
@@ -306,13 +324,42 @@ fn processor_thread(
             }
 
             let segment_statuses: Vec<(RangeF32, RangeStatus)> = segments
-                .into_par_iter()
-                .map(|segment| (segment, request.seam.check_range(segment)))
+                .par_iter()
+                .map(|segment| (*segment, request.seam.check_range(*segment)))
                 .collect();
 
-            for (segment, status) in segment_statuses {
-                progress.complete_segment(segment, status);
-                let _ = output.send((request.clone(), progress.clone()));
+            let num_interesting_points: usize = segment_statuses
+                .iter()
+                .map(|(_, status)| {
+                    if let RangeStatus::Checked {
+                        num_interesting_points,
+                        ..
+                    } = status
+                    {
+                        *num_interesting_points
+                    } else {
+                        0
+                    }
+                })
+                .sum();
+
+            if request.is_focused && num_interesting_points <= MAX_POINTS_RECORDED_INDIVIDUALLY {
+                // TODO: Parallelize
+                let points: Vec<(ProjectedPoint<f32>, PointStatus)> = segments
+                    .into_iter()
+                    .flat_map(|segment| {
+                        segment.iter().map(|w| {
+                            let (y, status) = request.seam.check_point(w);
+                            (ProjectedPoint { w, y }, status)
+                        })
+                    })
+                    .collect();
+                let _ = output.send((request.clone(), SeamOutput::Points(SeamPoints { points })));
+            } else {
+                for (segment, status) in segment_statuses {
+                    progress.complete_segment(segment, status);
+                    let _ = output.send((request.clone(), SeamOutput::Segments(progress.clone())));
+                }
             }
         }
     }
