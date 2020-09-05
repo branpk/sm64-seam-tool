@@ -2,7 +2,7 @@ use super::{BirdsEyeCamera, RotateCamera, SeamViewCamera, Viewport};
 use crate::{
     edge::{Orientation, ProjectionAxis},
     geo::{direction_to_pitch_yaw, Matrix4f, Point3f, Vector3f, Vector4f},
-    seam::RangeStatus,
+    seam::{PointStatus, RangeStatus},
 };
 use bytemuck::{cast_slice, Pod};
 use nalgebra::{distance, Point3, Vector3};
@@ -74,27 +74,31 @@ pub fn seam_view_screen_to_world(
         + (point[0] as f64) * (span_h / 2.0) * camera.right_dir
 }
 
+pub fn seam_point_color(status: PointStatus) -> [f32; 4] {
+    match status {
+        PointStatus::Gap => [0.0, 1.0, 0.0, 1.0],
+        PointStatus::Overlap => [0.0, 0.0, 1.0, 1.0],
+        PointStatus::None => [1.0, 1.0, 1.0, 1.0],
+    }
+}
+
 pub fn seam_segment_color(status: RangeStatus) -> [f32; 4] {
     match status {
         RangeStatus::Checked {
             has_gap: false,
             has_overlap: false,
-            ..
-        } => [1.0, 1.0, 1.0, 1.0],
+        } => seam_point_color(PointStatus::None),
         RangeStatus::Checked {
             has_gap: true,
             has_overlap: false,
-            ..
-        } => [0.0, 1.0, 0.0, 1.0],
+        } => seam_point_color(PointStatus::Gap),
         RangeStatus::Checked {
             has_gap: false,
             has_overlap: true,
-            ..
-        } => [0.0, 0.0, 1.0, 1.0],
+        } => seam_point_color(PointStatus::Overlap),
         RangeStatus::Checked {
             has_gap: true,
             has_overlap: true,
-            ..
         } => [0.0, 1.0, 1.0, 1.0],
         RangeStatus::Unchecked => [0.1, 0.1, 0.1, 1.0],
         RangeStatus::Skipped => [1.0, 0.0, 0.0, 1.0],

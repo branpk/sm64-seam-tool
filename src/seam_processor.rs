@@ -343,6 +343,7 @@ fn processor_thread(
                             (ProjectedPoint { w, y }, status)
                         })
                     })
+                    .filter(|(_, status)| *status != PointStatus::None)
                     .collect();
                 let _ = output.send((request.clone(), SeamOutput::Points(SeamPoints { points })));
             } else {
