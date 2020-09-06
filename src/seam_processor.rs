@@ -2,7 +2,7 @@ use crate::{
     edge::ProjectedPoint,
     float_range::{step_f32, RangeF32},
     game_state::{GameState, Surface},
-    seam::{PointStatus, RangeStatus, Seam},
+    seam::{PointFilter, PointStatus, RangeStatus, Seam},
     spatial_partition::SpatialPartition,
 };
 use rayon::prelude::*;
@@ -17,7 +17,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-const DEFAULT_SEGMENT_LENGTH: f32 = 5.0;
+const DEFAULT_SEGMENT_LENGTH: f32 = 20.0;
 const MAX_POINTS_RECORDED_INDIVIDUALLY: usize = 10_000;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -26,25 +26,28 @@ struct SeamRequest {
     w_range: RangeF32,
     segment_length: f32,
     is_focused: bool,
+    filter: PointFilter,
 }
 
 impl SeamRequest {
-    fn unfocused(seam: Seam) -> Self {
+    fn unfocused(seam: Seam, filter: PointFilter) -> Self {
         let w_range = seam.w_range();
         Self {
             seam,
             w_range,
             segment_length: DEFAULT_SEGMENT_LENGTH,
             is_focused: false,
+            filter,
         }
     }
 
-    fn focused(seam: Seam, w_range: RangeF32, segment_length: f32) -> Self {
+    fn focused(seam: Seam, w_range: RangeF32, segment_length: f32, filter: PointFilter) -> Self {
         Self {
             seam,
             w_range,
             segment_length,
             is_focused: true,
+            filter,
         }
     }
 }
@@ -144,6 +147,7 @@ pub struct SeamProcessor {
     queue: Arc<Mutex<VecDeque<SeamRequest>>>,
     output_receiver: Receiver<(SeamRequest, SeamOutput)>,
     focused_seam: Option<(SeamRequest, SeamOutput)>,
+    filter: PointFilter,
 }
 
 impl SeamProcessor {
@@ -160,6 +164,7 @@ impl SeamProcessor {
             queue,
             output_receiver: receiver,
             focused_seam: None,
+            filter: PointFilter::None,
         }
     }
 
@@ -223,13 +228,17 @@ impl SeamProcessor {
             if queue.is_empty() {
                 for seam in &self.active_seams {
                     if !self.progress.contains_key(seam) {
-                        queue.push_back(SeamRequest::unfocused(seam.clone()));
+                        queue.push_back(SeamRequest::unfocused(seam.clone(), self.filter));
                     }
                 }
             }
         }
 
         while let Ok((request, progress)) = self.output_receiver.try_recv() {
+            if request.filter != self.filter {
+                continue;
+            }
+
             if request.is_focused {
                 if let Some((focused_request, _)) = &self.focused_seam {
                     if focused_request == &request {
@@ -252,7 +261,7 @@ impl SeamProcessor {
         w_range: RangeF32,
         segment_length: f32,
     ) -> SeamOutput {
-        let request = SeamRequest::focused(seam.clone(), w_range, segment_length);
+        let request = SeamRequest::focused(seam.clone(), w_range, segment_length, self.filter);
         let mut progress = SeamOutput::Segments(SeamProgress::new(w_range, segment_length));
 
         if let Some((focused_request, focused_progress)) = &self.focused_seam {
@@ -307,6 +316,17 @@ impl SeamProcessor {
             .cloned()
             .unwrap_or(SeamProgress::new(seam.w_range(), DEFAULT_SEGMENT_LENGTH))
     }
+
+    pub fn filter(&self) -> PointFilter {
+        self.filter
+    }
+
+    pub fn set_filter(&mut self, filter: PointFilter) {
+        self.filter = filter;
+        self.focused_seam = None;
+        self.progress.clear();
+        self.queue.lock().unwrap().clear();
+    }
 }
 
 fn processor_thread(
@@ -325,7 +345,7 @@ fn processor_thread(
 
             let segment_statuses: Vec<(RangeF32, (usize, RangeStatus))> = segments
                 .par_iter()
-                .map(|segment| (*segment, request.seam.check_range(*segment)))
+                .map(|segment| (*segment, request.seam.check_range(*segment, request.filter)))
                 .collect();
 
             let num_interesting_points: usize = segment_statuses
@@ -333,13 +353,14 @@ fn processor_thread(
                 .map(|(_, (num_interesting_points, _))| num_interesting_points)
                 .sum();
 
+            // FIXME: Check bug: sometimes it seems like there are < 10 points on screen
             if request.is_focused && num_interesting_points <= MAX_POINTS_RECORDED_INDIVIDUALLY {
                 // TODO: Parallelize
                 let points: Vec<(ProjectedPoint<f32>, PointStatus)> = segments
                     .into_iter()
                     .flat_map(|segment| {
                         segment.iter().map(|w| {
-                            let (y, status) = request.seam.check_point(w);
+                            let (y, status) = request.seam.check_point(w, request.filter);
                             (ProjectedPoint { w, y }, status)
                         })
                     })

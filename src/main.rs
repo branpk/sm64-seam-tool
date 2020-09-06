@@ -16,7 +16,7 @@ use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use nalgebra::{Point3, Vector3};
 use process::Process;
 use read_process_memory::{copy_address, TryIntoProcessHandle};
-use seam::Seam;
+use seam::{PointFilter, Seam};
 use seam_processor::{SeamProcessor, SeamProgress};
 use std::{
     collections::HashSet,
@@ -82,7 +82,7 @@ impl App {
     fn new() -> Self {
         App {
             // FIXME: Set denorm setting (or handle manually)
-            process: Process::attach(29776, 0x008EBA80),
+            process: Process::attach(37992, 0x008EBA80),
             globals: Globals::US,
             sync_to_game: false,
             seam_processor: SeamProcessor::new(),
@@ -169,6 +169,21 @@ impl App {
         ));
 
         ui.checkbox(im_str!("sync"), &mut self.sync_to_game);
+
+        let all_filters = PointFilter::all();
+        let mut filter_index = all_filters
+            .iter()
+            .position(|filter| self.seam_processor.filter() == *filter)
+            .unwrap();
+        ui.set_next_item_width(100.0);
+        if imgui::ComboBox::new(im_str!("")).build_simple(
+            ui,
+            &mut filter_index,
+            &all_filters,
+            &|filter| im_str!("{}", filter).into(),
+        ) {
+            self.seam_processor.set_filter(all_filters[filter_index]);
+        }
 
         scene
     }

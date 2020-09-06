@@ -3,6 +3,44 @@ use crate::{
     float_range::{step_f32_by, RangeF32},
     geo::Point3f,
 };
+use std::fmt::{self, Display};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PointFilter {
+    None,
+    IntY,
+    QuarterIntY,
+}
+
+impl Default for PointFilter {
+    fn default() -> Self {
+        Self::None
+    }
+}
+
+impl Display for PointFilter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PointFilter::None => write!(f, "all y"),
+            PointFilter::IntY => write!(f, "int y"),
+            PointFilter::QuarterIntY => write!(f, "qint y"),
+        }
+    }
+}
+
+impl PointFilter {
+    pub fn all() -> Vec<Self> {
+        vec![Self::None, Self::IntY, Self::QuarterIntY]
+    }
+
+    pub fn matches(&self, point: ProjectedPoint<f32>) -> bool {
+        match self {
+            PointFilter::None => true,
+            PointFilter::IntY => point.y.fract() == 0.0,
+            PointFilter::QuarterIntY => [0.0, 0.25, 0.5, 0.75].contains(&point.y.fract()),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PointStatus {
@@ -64,7 +102,7 @@ impl Seam {
         self.edge1.w_range().intersect(&self.edge2.w_range())
     }
 
-    pub fn check_point(&self, w: f32) -> (f32, PointStatus) {
+    pub fn check_point(&self, w: f32, filter: PointFilter) -> (f32, PointStatus) {
         let y0 = self.edge1.approx_y(w);
 
         // TODO: Verify that we go far enough to be within each wall separately
@@ -73,27 +111,29 @@ impl Seam {
             let y = step_f32_by(y0, i);
             let point = ProjectedPoint { w, y };
 
-            let in1 = self.edge1.accepts_projected(point);
-            let in2 = self.edge2.accepts_projected(point);
+            if filter.matches(point) {
+                let in1 = self.edge1.accepts_projected(point);
+                let in2 = self.edge2.accepts_projected(point);
 
-            if in1 && in2 {
-                return (y, PointStatus::Overlap);
-            }
-            if !in1 && !in2 {
-                return (y, PointStatus::Gap);
+                if in1 && in2 {
+                    return (y, PointStatus::Overlap);
+                }
+                if !in1 && !in2 {
+                    return (y, PointStatus::Gap);
+                }
             }
         }
 
         (y0, PointStatus::None)
     }
 
-    pub fn check_range(&self, w_range: RangeF32) -> (usize, RangeStatus) {
+    pub fn check_range(&self, w_range: RangeF32, filter: PointFilter) -> (usize, RangeStatus) {
         let mut has_gap = false;
         let mut has_overlap = false;
         let mut num_interesting_points = w_range.count();
 
         for w in w_range.iter() {
-            match self.check_point(w).1 {
+            match self.check_point(w, filter).1 {
                 PointStatus::Gap => {
                     has_gap = true;
                     num_interesting_points += 1;
