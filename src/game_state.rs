@@ -4,7 +4,19 @@ use crate::{
 };
 use bytemuck::{cast_slice, from_bytes, Pod, Zeroable};
 use serde::{Deserialize, Serialize};
-use std::mem::size_of;
+use std::{collections::HashMap, mem::size_of};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Config {
+    pub base_addresses: HashMap<String, usize>,
+    pub game_versions: Vec<GameVersion>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GameVersion {
+    pub name: String,
+    pub globals: Globals,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Globals {

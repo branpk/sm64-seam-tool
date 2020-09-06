@@ -141,6 +141,7 @@ impl SeamProgress {
     }
 }
 
+#[derive(Debug)]
 pub struct SeamProcessor {
     active_seams: Vec<Seam>,
     progress: HashMap<Seam, SeamProgress>,

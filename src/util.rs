@@ -1,13 +1,18 @@
 use crate::{
     edge::{Edge, ProjectedPoint, ProjectionAxis},
-    game_state::GameState,
+    game_state::{GameState, Globals},
     geo::{direction_to_pitch_yaw, pitch_yaw_to_direction, Point3f, Vector3f},
     graphics::{self, Camera, GameViewScene, RotateCamera, SurfaceType, Viewport},
+    process::Process,
     seam::Seam,
     seam_processor::{SeamOutput, SeamProcessor, SeamProgress},
 };
 use graphics::{FocusedSeamData, FocusedSeamInfo, SeamInfo, SeamSegment};
-use std::{collections::HashSet, f32::consts::PI};
+use std::{
+    collections::HashSet,
+    f32::consts::PI,
+    time::{Duration, Instant},
+};
 
 pub fn get_norm_mouse_pos(
     mouse_pos: [f32; 2],
@@ -226,6 +231,21 @@ pub fn get_focused_seam_info(seam: &Seam, output: &SeamOutput) -> FocusedSeamInf
                 seam: seam.clone(),
                 data: FocusedSeamData::Segments(segments),
             }
+        }
+    }
+}
+
+pub fn canonicalize_process_name(name: &str) -> String {
+    name.trim_end_matches(".exe").to_lowercase()
+}
+
+pub fn sync_to_game(process: &Process, globals: &Globals) {
+    let initial_global_timer: u32 = process.read(globals.global_timer);
+    let start_time = Instant::now();
+    while start_time.elapsed() < Duration::from_millis(50) {
+        let global_timer: u32 = process.read(globals.global_timer);
+        if global_timer != initial_global_timer {
+            break;
         }
     }
 }
