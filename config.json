@@ -1,0 +1,30 @@
+{
+    "base_addresses": {
+        "mupen64-rerecording": 0x008EBA80,
+        "mupen64-pucrash": 0x00912300,
+        "mupen64-lua": 0x00888F60,
+        "mupen64-wiivc": 0x00901920,
+        "nemu64": 0x10020000,
+        "project64d": 0x20000000,
+    },
+    "game_versions": [
+        {
+            "name": "US",
+            "globals": {
+                "global_timer": 0x8032d5d4,
+                "lakitu_state": 0x8033c698,
+                "surfaces_allocated": 0x80361170,
+                "surface_pool": 0x8038ee9c,
+            }
+        },
+        {
+            "name": "JP",
+            "globals": {
+                "global_timer": 0x8032c694,
+                "lakitu_state": 0x8033c698,
+                "surfaces_allocated": 0x8035fe00,
+                "surface_pool": 0x8038ee9c,
+            }
+        },
+    ]
+}

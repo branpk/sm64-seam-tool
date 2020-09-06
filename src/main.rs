@@ -11,20 +11,27 @@ use graphics::{
     RotateCamera, Scene, SeamInfo, SeamSegment, SeamViewCamera, SeamViewScene, SurfaceType,
     Viewport,
 };
-use imgui::{im_str, Condition, ConfigFlags, Context, DrawData, MouseButton, Ui};
+use imgui::{im_str, Condition, ConfigFlags, Context, DrawData, ImString, MouseButton, Ui};
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
+use itertools::Itertools;
+use lazy_static::lazy_static;
 use nalgebra::{Point3, Vector3};
 use process::Process;
 use read_process_memory::{copy_address, TryIntoProcessHandle};
 use seam::{PointFilter, Seam};
 use seam_processor::{SeamProcessor, SeamProgress};
+use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashSet,
+    borrow::Cow,
+    collections::{HashMap, HashSet},
     convert::TryInto,
     f32::consts::PI,
+    fs::{self, File},
+    io::Read,
     iter,
     time::{Duration, Instant},
 };
+use sysinfo::{ProcessExt, System, SystemExt};
 use util::{
     build_game_view_scene, find_hovered_seam, get_focused_seam_info, get_mouse_ray,
     get_norm_mouse_pos, get_segment_info,
@@ -68,7 +75,7 @@ impl SeamViewState {
     }
 }
 
-struct App {
+struct Model {
     process: Process,
     globals: Globals,
     sync_to_game: bool,
@@ -78,12 +85,11 @@ struct App {
     fps_string: String,
 }
 
-impl App {
-    fn new() -> Self {
-        App {
-            // FIXME: Set denorm setting (or handle manually)
-            process: Process::attach(50164, 0x008EBA80),
-            globals: Globals::US,
+impl Model {
+    fn new(pid: u32, base_address: usize, globals: Globals) -> Self {
+        Model {
+            process: Process::attach(pid, base_address),
+            globals,
             sync_to_game: false,
             seam_processor: SeamProcessor::new(),
             hovered_seam: None,
@@ -341,6 +347,161 @@ fn get_seam_view_camera(seam_view: &mut SeamViewState, viewport: &Viewport) -> S
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct Config {
+    base_addresses: HashMap<String, usize>,
+    game_versions: Vec<GameVersion>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct GameVersion {
+    name: String,
+    globals: Globals,
+}
+
+fn canonicalize_process_name(name: &str) -> String {
+    name.trim_end_matches(".exe").to_lowercase()
+}
+
+struct ConnectionMenu {
+    config: Config,
+    system: System,
+    selected_pid: Option<usize>,
+    base_addr_buffer: ImString,
+    selected_base_addr: Option<usize>,
+    selected_version_index: usize,
+}
+
+impl ConnectionMenu {
+    fn new() -> Self {
+        let config_text = fs::read_to_string("config.json").unwrap();
+        let config = json5::from_str(&config_text).unwrap();
+        Self {
+            config,
+            system: System::new(),
+            selected_pid: None,
+            base_addr_buffer: ImString::with_capacity(32),
+            selected_base_addr: None,
+            selected_version_index: 0,
+        }
+    }
+
+    fn render(&mut self, ui: &Ui) -> Option<Model> {
+        self.system.refresh_processes();
+        let processes: Vec<_> = self
+            .system
+            .get_processes()
+            .values()
+            .sorted_by_key(|process| process.name().to_lowercase())
+            .collect();
+
+        let mut process_index = self
+            .selected_pid
+            .and_then(|selected_pid| {
+                processes
+                    .iter()
+                    .position(|process| process.pid() == selected_pid)
+            })
+            .unwrap_or_else(|| {
+                let known_process = processes.iter().position(|process| {
+                    let name = canonicalize_process_name(process.name());
+                    self.config.base_addresses.contains_key(name.as_str())
+                });
+                known_process.unwrap_or(0)
+            });
+
+        ui.text("Connect to emulator");
+
+        ui.spacing();
+        ui.set_next_item_width(300.0);
+        imgui::ComboBox::new(&im_str!("##process")).build_simple(
+            ui,
+            &mut process_index,
+            &processes,
+            &|process| im_str!("{:8}: {}", process.pid(), process.name()).into(),
+        );
+        let selected_process = processes.get(process_index).cloned();
+        let selected_pid = selected_process.map(|process| process.pid());
+        let changed_pid = selected_pid != self.selected_pid;
+        self.selected_pid = selected_pid;
+
+        ui.spacing();
+        ui.text(im_str!("Base address: "));
+        ui.same_line(110.0);
+        ui.set_next_item_width(190.0);
+        if ui
+            .input_text(im_str!("##base-addr"), &mut self.base_addr_buffer)
+            .build()
+        {
+            self.selected_base_addr = parse_int::parse(self.base_addr_buffer.to_str()).ok();
+        }
+        if changed_pid {
+            if let Some(selected_process) = selected_process {
+                if let Some(base_addr) = self
+                    .config
+                    .base_addresses
+                    .get(canonicalize_process_name(selected_process.name()).as_str())
+                {
+                    self.selected_base_addr = Some(*base_addr);
+                    self.base_addr_buffer = im_str!("{:#X}", *base_addr);
+                    self.base_addr_buffer.reserve(32);
+                }
+            }
+        }
+
+        ui.spacing();
+        ui.text(im_str!("Game version: "));
+        ui.same_line(110.0);
+        ui.set_next_item_width(100.0);
+        imgui::ComboBox::new(im_str!("")).build_simple(
+            ui,
+            &mut self.selected_version_index,
+            &self.config.game_versions,
+            &|game_version| im_str!("{}", game_version.name).into(),
+        );
+
+        ui.spacing();
+        if let Some(pid) = self.selected_pid {
+            if let Some(base_addr) = self.selected_base_addr {
+                if ui.button(im_str!("Connect"), [0.0, 0.0]) {
+                    return Some(Model::new(
+                        pid as u32,
+                        base_addr,
+                        self.config.game_versions[self.selected_version_index]
+                            .globals
+                            .clone(),
+                    ));
+                }
+            }
+        }
+
+        None
+    }
+}
+
+enum App {
+    ConnectionMenu(ConnectionMenu),
+    Connected(Model),
+}
+
+impl App {
+    fn new() -> Self {
+        Self::ConnectionMenu(ConnectionMenu::new())
+    }
+
+    fn render(&mut self, ui: &Ui) -> Vec<Scene> {
+        match self {
+            App::ConnectionMenu(menu) => {
+                if let Some(model) = menu.render(ui) {
+                    *self = Self::Connected(model);
+                }
+                Vec::new()
+            }
+            App::Connected(model) => model.render(ui),
+        }
+    }
+}
+
 fn main() {
     futures::executor::block_on(async {
         let instance = wgpu::Instance::new(wgpu::BackendBit::PRIMARY);
@@ -405,7 +566,9 @@ fn main() {
                 let fps = frames_since_fps as f64 / elapsed.as_secs_f64();
                 let mspf = elapsed.as_millis() as f64 / frames_since_fps as f64;
 
-                app.fps_string = format!("{:.2} mspf = {:.1} fps", mspf, fps);
+                if let App::Connected(model) = &mut app {
+                    model.fps_string = format!("{:.2} mspf = {:.1} fps", mspf, fps);
+                }
 
                 last_fps_time = Instant::now();
                 frames_since_fps = 0;

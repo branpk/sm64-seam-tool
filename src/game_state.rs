@@ -3,30 +3,15 @@ use crate::{
     process::Process,
 };
 use bytemuck::{cast_slice, from_bytes, Pod, Zeroable};
+use serde::{Deserialize, Serialize};
 use std::mem::size_of;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Globals {
     pub global_timer: u32,
     pub lakitu_state: u32,
     pub surfaces_allocated: u32,
     pub surface_pool: u32,
-}
-
-impl Globals {
-    pub const US: Globals = Globals {
-        global_timer: 0x8032d5d4,
-        lakitu_state: 0x8033c698,
-        surfaces_allocated: 0x80361170,
-        surface_pool: 0x8038ee9c,
-    };
-
-    pub const JP: Globals = Globals {
-        global_timer: 0x8032c694,
-        lakitu_state: 0x8033c698,
-        surfaces_allocated: 0x8035fe00,
-        surface_pool: 0x8038ee9c,
-    };
 }
 
 #[derive(Debug, Clone, Copy, Default)]
