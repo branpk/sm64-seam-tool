@@ -1,6 +1,6 @@
 use crate::{
     edge::{Edge, ProjectedPoint},
-    float_range::{step_f32_by, RangeF32},
+    float_range::{next_f32, prev_f32, RangeF32},
     geo::Point3f,
 };
 use std::fmt::{self, Display};
@@ -103,12 +103,12 @@ impl Seam {
     }
 
     pub fn check_point(&self, w: f32, filter: PointFilter) -> (f32, PointStatus) {
-        let y0 = self.edge1.approx_y(w);
+        let y_approx = self.edge1.approx_y(w);
+        let y_range = RangeF32::inclusive(prev_f32(y_approx), next_f32(y_approx));
 
         // TODO: Verify that we go far enough to be within each wall separately
 
-        for i in -1..=1 {
-            let y = step_f32_by(y0, i);
+        for y in y_range.iter() {
             let point = ProjectedPoint { w, y };
 
             if filter.matches(point) {
@@ -124,7 +124,7 @@ impl Seam {
             }
         }
 
-        (y0, PointStatus::None)
+        (y_approx, PointStatus::None)
     }
 
     pub fn check_range(&self, w_range: RangeF32, filter: PointFilter) -> (usize, RangeStatus) {

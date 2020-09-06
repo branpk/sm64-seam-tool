@@ -1,4 +1,4 @@
-use crate::float_range::RangeF32;
+use crate::float_range::{flush_f32_to_zero, RangeF32};
 
 /// The axis along which a wall projects.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -152,8 +152,8 @@ impl Edge {
 
     /// Return true if the projected point lies on the inside of the edge.
     pub fn accepts_projected(&self, point: ProjectedPoint<f32>) -> bool {
-        let w = point.w;
-        let y = point.y;
+        let w = flush_f32_to_zero(point.w);
+        let y = flush_f32_to_zero(point.y);
 
         let w1 = self.vertex1.w as f32;
         let y1 = self.vertex1.y as f32;
@@ -161,7 +161,9 @@ impl Edge {
         let w2 = self.vertex2.w as f32;
         let y2 = self.vertex2.y as f32;
 
-        let r = (y1 - y) * (w2 - w1) - (w1 - w) * (y2 - y1);
+        let r = flush_f32_to_zero(
+            flush_f32_to_zero((y1 - y) * (w2 - w1)) - flush_f32_to_zero((w1 - w) * (y2 - y1)),
+        );
 
         match self.orientation {
             Orientation::Positive => r >= 0.0,

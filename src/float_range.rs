@@ -1,47 +1,74 @@
 use std::iter;
 
-// FIXME: Denorms
-
-/// Compute the next float larger than x.
-pub fn step_f32(x: f32) -> f32 {
+pub fn flush_f32_to_zero(x: f32) -> f32 {
     let bits = x.to_bits();
-    if (bits & (1 << 31)) == 0 {
-        f32::from_bits(bits + 1)
-    } else if bits == (1 << 31) {
-        0.0
+    let exp = (bits & !(1 << 31)) >> 23;
+    if exp == 0 {
+        f32::from_bits(bits & (1 << 31))
     } else {
-        f32::from_bits(bits - 1)
+        x
     }
 }
 
-pub fn step_f32_by(x: f32, mut amount: i32) -> f32 {
-    let mut bits = x.to_bits();
-
-    // negative to positive
-    if (bits & (1 << 31)) != 0 {
-        let to_zero = (bits & !(1 << 31)) as i32;
-        if amount > to_zero {
-            bits = 0;
-            amount -= to_zero + 1;
-        }
-    }
-
-    // positive to negative
-    if (bits & (1 << 31)) == 0 {
-        let to_zero = -(bits as i32);
-        if amount < to_zero {
-            bits = 1 << 31;
-            amount += -to_zero + 1;
-        }
-    }
-
-    if (bits & (1 << 31)) == 0 {
-        bits = (bits as i32 + amount) as u32;
+/// Compute the next float larger than x.
+pub fn next_f32(x: f32) -> f32 {
+    let x = flush_f32_to_zero(x);
+    let bits = x.to_bits();
+    let result_bits = if bits == 0 {
+        1 << 23
+    } else if (bits & (1 << 31)) == 0 {
+        bits + 1
+    } else if bits == (1 << 31) {
+        0
+    } else if bits == ((1 << 31) | (1 << 23)) {
+        1 << 31
     } else {
-        bits = (bits as i32 - amount) as u32;
+        bits - 1
+    };
+    f32::from_bits(result_bits)
+}
+
+/// Compute the previous float smaller than x.
+pub fn prev_f32(x: f32) -> f32 {
+    let x = flush_f32_to_zero(x);
+    let bits = x.to_bits();
+    let result_bits = if bits == 0 {
+        1 << 31
+    } else if bits == (1 << 23) {
+        0
+    } else if (bits & (1 << 31)) == 0 {
+        bits - 1
+    } else if bits == (1 << 31) {
+        (1 << 31) | (1 << 23)
+    } else {
+        bits + 1
+    };
+    f32::from_bits(result_bits)
+}
+
+pub fn f32s_between(start: f32, end: f32) -> u32 {
+    let start = flush_f32_to_zero(start);
+    let end = flush_f32_to_zero(end);
+    if start >= end {
+        return 0;
     }
 
-    f32::from_bits(bits)
+    fn positive_lt(x: u32) -> u32 {
+        if (x & (1 << 31)) == 0 {
+            x - (1 << 23) + 1
+        } else {
+            0
+        }
+    }
+    fn negative_ge(x: u32) -> u32 {
+        positive_lt(x ^ (1 << 31)) + 1
+    }
+
+    let start_bits = start.to_bits();
+    let end_bits = end.to_bits();
+    let positive = positive_lt(end_bits) - positive_lt(start_bits);
+    let negative = negative_ge(start_bits) - negative_ge(end_bits);
+    positive + negative
 }
 
 /// A closed range of float values.
@@ -53,11 +80,14 @@ pub struct RangeF32 {
 
 impl RangeF32 {
     pub fn inclusive_exclusive(start: f32, end: f32) -> Self {
-        Self { start, end }
+        Self {
+            start: flush_f32_to_zero(start),
+            end: flush_f32_to_zero(end),
+        }
     }
 
     pub fn inclusive(min: f32, max: f32) -> Self {
-        Self::inclusive_exclusive(min, step_f32(max))
+        Self::inclusive_exclusive(min, next_f32(max))
     }
 
     pub fn empty() -> Self {
@@ -69,38 +99,13 @@ impl RangeF32 {
     }
 
     pub fn count(&self) -> usize {
-        if self.is_empty() {
-            return 0;
-        }
-
-        // FIXME: Denorms
-        let mut positive = 0;
-        let mut negative = 0;
-
-        let start_bits = self.start.to_bits();
-        let end_bits = self.end.to_bits();
-
-        if (end_bits & (1 << 31)) == 0 {
-            positive += end_bits as usize;
-        }
-        if (start_bits & (1 << 31)) == 0 {
-            positive -= start_bits as usize;
-        }
-
-        if (start_bits & (1 << 31)) != 0 {
-            negative += (start_bits & !(1 << 31)) as usize;
-        }
-        if (end_bits & (1 << 31)) != 0 {
-            negative -= (end_bits & !(1 << 31)) as usize;
-        }
-
-        positive + negative
+        f32s_between(self.start, self.end) as usize
     }
 
     pub fn iter(&self) -> impl Iterator<Item = f32> {
         // Could be done more efficiently by chaining two integer ranges (negative then positive)
         let end = self.end;
-        iter::successors(Some(self.start), |x| Some(step_f32(*x))).take_while(move |x| *x < end)
+        iter::successors(Some(self.start), |x| Some(next_f32(*x))).take_while(move |x| *x < end)
     }
 
     pub fn intersect(&self, other: &Self) -> Self {
