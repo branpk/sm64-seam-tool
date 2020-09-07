@@ -1,11 +1,12 @@
 use crate::{
+    float_range::{next_f32, prev_f32, RangeF32},
     game_state::{Config, Globals},
     geo::point_f32_to_f64,
     process::Process,
-    seam::Seam,
+    seam::{PointFilter, Seam},
     seam_processor::SeamProcessor,
 };
-use imgui::ImString;
+use imgui::{im_str, ImString};
 use nalgebra::Point3;
 use std::fs;
 use sysinfo::{System, SystemExt};
@@ -56,6 +57,7 @@ pub struct ConnectedView {
     pub hovered_seam: Option<Seam>,
     pub seam_view: Option<SeamViewState>,
     pub fps_string: String,
+    pub export_form: Option<SeamExportForm>,
 }
 
 impl ConnectedView {
@@ -68,6 +70,7 @@ impl ConnectedView {
             hovered_seam: None,
             seam_view: None,
             fps_string: String::new(),
+            export_form: None,
         }
     }
 }
@@ -90,6 +93,37 @@ impl SeamViewState {
             mouse_drag_start_pos: None,
             zoom: 0.0,
             initial_span_y: None,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct SeamExportForm {
+    pub seam: Seam,
+    pub filter: PointFilter,
+    pub include_small_w: bool,
+    pub min_w: Option<f32>,
+    pub max_w: Option<f32>,
+    pub min_w_buffer: ImString,
+    pub max_w_buffer: ImString,
+}
+
+impl SeamExportForm {
+    pub fn new(seam: Seam, filter: PointFilter) -> Self {
+        let w_range = seam.w_range();
+        let mut min_w_buffer = im_str!("{}", w_range.start);
+        min_w_buffer.reserve(32);
+        let mut max_w_buffer = im_str!("{}", prev_f32(w_range.end));
+        max_w_buffer.reserve(32);
+
+        Self {
+            seam,
+            filter,
+            include_small_w: false,
+            min_w: Some(w_range.start),
+            max_w: Some(prev_f32(w_range.end)),
+            min_w_buffer,
+            max_w_buffer,
         }
     }
 }

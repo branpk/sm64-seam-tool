@@ -1,4 +1,5 @@
 use crate::float_range::{flush_f32_to_zero, RangeF32};
+use std::fmt::{self, Display};
 
 /// The axis along which a wall projects.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -14,6 +15,15 @@ impl ProjectionAxis {
             Self::X
         } else {
             Self::Z
+        }
+    }
+}
+
+impl Display for ProjectionAxis {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ProjectionAxis::X => write!(f, "x"),
+            ProjectionAxis::Z => write!(f, "z"),
         }
     }
 }

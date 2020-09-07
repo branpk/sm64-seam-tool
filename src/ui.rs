@@ -1,5 +1,5 @@
 use crate::{
-    edge::{Orientation, ProjectionAxis},
+    edge::{Edge, Orientation, ProjectedPoint, ProjectionAxis},
     float_range::RangeF32,
     game_state::GameState,
     geo::{point_f64_to_f32, Point3f},
@@ -7,7 +7,7 @@ use crate::{
         seam_view_screen_to_world, Camera, GameViewScene, Scene, SeamViewCamera, SeamViewScene,
         Viewport,
     },
-    model::{App, ConnectedView, ConnectionMenu, SeamViewState},
+    model::{App, ConnectedView, ConnectionMenu, SeamExportForm, SeamViewState},
     seam::PointFilter,
     util::{
         build_game_view_scene, canonicalize_process_name, find_hovered_seam, get_focused_seam_info,
@@ -20,6 +20,8 @@ use nalgebra::{Point3, Vector3};
 use sysinfo::{ProcessExt, SystemExt};
 
 pub fn render_app(ui: &Ui, app: &mut App) -> Vec<Scene> {
+    let style_token = ui.push_style_color(imgui::StyleColor::WindowBg, [0.0, 0.0, 0.0, 0.0]);
+
     let mut scenes = Vec::new();
     imgui::Window::new(im_str!("##app"))
         .position([0.0, 0.0], Condition::Always)
@@ -41,6 +43,8 @@ pub fn render_app(ui: &Ui, app: &mut App) -> Vec<Scene> {
                 App::Connected(view) => render_connected_view(ui, view),
             }
         });
+
+    style_token.pop(ui);
     scenes
 }
 
@@ -165,6 +169,12 @@ fn render_connected_view(ui: &Ui, view: &mut ConnectedView) -> Vec<Scene> {
         });
     }
 
+    if let Some(form) = &mut view.export_form {
+        if !render_export_form(ui, form) {
+            view.export_form = None;
+        }
+    }
+
     scenes
 }
 
@@ -189,7 +199,10 @@ fn render_game_view(ui: &Ui, view: &mut ConnectedView, state: &GameState) -> Gam
     }
 
     if let Some(hovered_seam) = &view.hovered_seam {
-        if ui.is_mouse_clicked(MouseButton::Left) && !ui.is_any_item_hovered() {
+        if ui.is_mouse_clicked(MouseButton::Left)
+            && !ui.is_any_item_hovered()
+            && view.export_form.is_none()
+        {
             view.seam_view = Some(SeamViewState::new(hovered_seam.clone()));
         }
     }
@@ -208,7 +221,7 @@ fn render_game_view(ui: &Ui, view: &mut ConnectedView, state: &GameState) -> Gam
         .position(|filter| view.seam_processor.filter() == *filter)
         .unwrap();
     ui.set_next_item_width(100.0);
-    if imgui::ComboBox::new(im_str!("")).build_simple(
+    if imgui::ComboBox::new(im_str!("##filter")).build_simple(
         ui,
         &mut filter_index,
         &all_filters,
@@ -239,6 +252,7 @@ fn render_seam_view(ui: &Ui, view: &mut ConnectedView) -> SeamViewScene {
 
     if ui.is_mouse_clicked(MouseButton::Left)
         && !ui.is_any_item_hovered()
+        && view.export_form.is_none()
         && screen_mouse_pos.x.abs() <= 1.0
         && screen_mouse_pos.y.abs() <= 1.0
     {
@@ -326,13 +340,33 @@ fn render_seam_view(ui: &Ui, view: &mut ConnectedView) -> SeamViewScene {
 
     let close_seam_view = ui.button(im_str!("Close"), [0.0, 0.0]);
 
+    ui.same_line(50.0);
+    if ui.button(im_str!("Export"), [0.0, 0.0]) {
+        view.export_form = Some(SeamExportForm::new(
+            seam.clone(),
+            view.seam_processor.filter(),
+        ));
+    }
+
+    ui.spacing();
+
     let rounded_mouse = point_f64_to_f32(world_mouse_pos);
     match seam.edge1.projection_axis {
         ProjectionAxis::X => {
             ui.text(im_str!("(_, {}, {})", rounded_mouse.y, rounded_mouse.z));
+            ui.text(im_str!(
+                "(_, {:#08X}, {:#08X})",
+                rounded_mouse.y.to_bits(),
+                rounded_mouse.z.to_bits(),
+            ));
         }
         ProjectionAxis::Z => {
             ui.text(im_str!("({}, {}, _)", rounded_mouse.x, rounded_mouse.y));
+            ui.text(im_str!(
+                "({:#08X}, {:#08X}, _)",
+                rounded_mouse.x.to_bits(),
+                rounded_mouse.y.to_bits(),
+            ));
         }
     }
 
@@ -368,4 +402,97 @@ fn get_seam_view_camera(seam_view: &mut SeamViewState, viewport: &Viewport) -> S
         span_y,
         right_dir: screen_right,
     }
+}
+
+fn render_export_form(ui: &Ui, form: &mut SeamExportForm) -> bool {
+    let style_token = ui.push_style_color(imgui::StyleColor::WindowBg, [0.06, 0.06, 0.06, 0.94]);
+
+    let mut opened = true;
+    imgui::Window::new(im_str!("Export seam data"))
+        .size([500.0, 300.0], Condition::Appearing)
+        .opened(&mut opened)
+        .build(ui, || {
+            let show_point =
+                |projection_axis: ProjectionAxis, point: ProjectedPoint<i16>| match projection_axis
+                {
+                    ProjectionAxis::X => format!("(_, {}, {})", point.y, point.w),
+                    ProjectionAxis::Z => format!("({}, {}, _)", point.w, point.y),
+                };
+            let show_edge = |edge: Edge| {
+                let normal_info = match (edge.projection_axis, edge.orientation) {
+                    (ProjectionAxis::X, Orientation::Positive) => "x+",
+                    (ProjectionAxis::X, Orientation::Negative) => "x-",
+                    (ProjectionAxis::Z, Orientation::Positive) => "z-",
+                    (ProjectionAxis::Z, Orientation::Negative) => "z+",
+                };
+                format!(
+                    "v1 = {}, v2 = {}, n = {}",
+                    show_point(edge.projection_axis, edge.vertex1),
+                    show_point(edge.projection_axis, edge.vertex2),
+                    normal_info,
+                )
+            };
+
+            ui.text(im_str!("edge 1: {}", show_edge(form.seam.edge1)));
+            ui.text(im_str!("edge 2: {}", show_edge(form.seam.edge2)));
+
+            ui.spacing();
+            let all_filters = PointFilter::all();
+            let mut filter_index = all_filters
+                .iter()
+                .position(|filter| form.filter == *filter)
+                .unwrap();
+            ui.set_next_item_width(100.0);
+            if imgui::ComboBox::new(im_str!("##filter")).build_simple(
+                ui,
+                &mut filter_index,
+                &all_filters,
+                &|filter| im_str!("{}", filter).into(),
+            ) {
+                form.filter = all_filters[filter_index];
+            }
+
+            ui.spacing();
+            ui.checkbox(im_str!("Include [-1, 1]"), &mut form.include_small_w);
+
+            let coord_axis_str = match form.seam.edge1.projection_axis {
+                ProjectionAxis::X => "z",
+                ProjectionAxis::Z => "x",
+            };
+
+            ui.spacing();
+
+            ui.text(im_str!("min {}: ", coord_axis_str));
+            ui.same_line(80.0);
+            ui.set_next_item_width(100.0);
+            if ui
+                .input_text(im_str!("##min-w"), &mut form.min_w_buffer)
+                .build()
+            {
+                form.min_w = form.min_w_buffer.to_str().parse::<f32>().ok();
+            }
+
+            ui.text(im_str!("max {}: ", coord_axis_str));
+            ui.same_line(80.0);
+            ui.set_next_item_width(100.0);
+            if ui
+                .input_text(im_str!("##max-w"), &mut form.max_w_buffer)
+                .build()
+            {
+                form.max_w = form.max_w_buffer.to_str().parse::<f32>().ok();
+            }
+
+            if let Some(min_w) = form.min_w {
+                if let Some(max_w) = form.max_w {
+                    ui.spacing();
+                    if ui.button(im_str!("Export"), [0.0, 0.0]) {
+                        let w_range = RangeF32::inclusive(min_w, max_w);
+                        dbg!(w_range);
+                    }
+                }
+            }
+        });
+
+    style_token.pop(ui);
+    opened
 }
