@@ -1,9 +1,13 @@
 use crate::{
     edge::{Edge, ProjectedPoint, ProjectionAxis},
+    float_range::RangeF32,
     game_state::{GameState, Globals},
     geo::{direction_to_pitch_yaw, pitch_yaw_to_direction, Point3f, Vector3f},
     graphics::{self, Camera, GameViewScene, RotateCamera, SurfaceType, Viewport},
+    model::ExportProgress,
     process::Process,
+    seam::PointFilter,
+    seam::PointStatus,
     seam::Seam,
     seam_processor::{SeamOutput, SeamProcessor, SeamProgress},
 };
@@ -11,6 +15,9 @@ use graphics::{FocusedSeamData, FocusedSeamInfo, SeamInfo, SeamSegment};
 use std::{
     collections::HashSet,
     f32::consts::PI,
+    io,
+    io::Write,
+    sync::mpsc::Sender,
     time::{Duration, Instant},
 };
 
@@ -248,4 +255,52 @@ pub fn sync_to_game(process: &Process, globals: &Globals) {
             break;
         }
     }
+}
+
+pub fn save_seam_to_csv(
+    writer: &mut impl Write,
+    mut set_progress: impl FnMut(Option<ExportProgress>),
+    seam: &Seam,
+    filter: PointFilter,
+    include_small_w: bool,
+    w_range: RangeF32,
+) -> io::Result<()> {
+    match seam.edge1.projection_axis {
+        ProjectionAxis::X => writeln!(writer, "z,z hex,y,y hex,type")?,
+        ProjectionAxis::Z => writeln!(writer, "x,x hex,y,y hex,type")?,
+    }
+
+    let w_ranges = if include_small_w {
+        vec![w_range]
+    } else {
+        let (left, right) = w_range.cut_out(&RangeF32::inclusive_exclusive(-1.0, 1.0));
+        vec![left, right]
+    };
+
+    let total = w_ranges.iter().map(|range| range.count()).sum();
+    let mut complete = 0;
+
+    for w in w_ranges.into_iter().flat_map(|range| range.iter()) {
+        let (y, status) = seam.check_point(w, filter);
+        complete += 1;
+
+        if complete % 1000 == 0 {
+            set_progress(Some(ExportProgress { complete, total }));
+        }
+
+        if status != PointStatus::None {
+            write!(
+                writer,
+                "{},{:#08X},{},{:#08X},{}\n",
+                w,
+                w.to_bits(),
+                y,
+                y.to_bits(),
+                status,
+            )?;
+        }
+    }
+
+    set_progress(None);
+    Ok(())
 }

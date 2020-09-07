@@ -49,6 +49,16 @@ pub enum PointStatus {
     None,
 }
 
+impl Display for PointStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PointStatus::Gap => write!(f, "gap"),
+            PointStatus::Overlap => write!(f, "overlap"),
+            PointStatus::None => write!(f, "none"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RangeStatus {
     Checked { has_gap: bool, has_overlap: bool },

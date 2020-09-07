@@ -1,3 +1,5 @@
+use std::thread;
+
 use crate::{
     edge::{Edge, Orientation, ProjectedPoint, ProjectionAxis},
     float_range::RangeF32,
@@ -9,6 +11,7 @@ use crate::{
     },
     model::{App, ConnectedView, ConnectionMenu, SeamExportForm, SeamViewState},
     seam::PointFilter,
+    util::save_seam_to_csv,
     util::{
         build_game_view_scene, canonicalize_process_name, find_hovered_seam, get_focused_seam_info,
         get_mouse_ray, get_norm_mouse_pos, sync_to_game,
@@ -169,10 +172,8 @@ fn render_connected_view(ui: &Ui, view: &mut ConnectedView) -> Vec<Scene> {
         });
     }
 
-    if let Some(form) = &mut view.export_form {
-        if !render_export_form(ui, form) {
-            view.export_form = None;
-        }
+    if view.export_form.is_some() {
+        render_export_form(ui, view);
     }
 
     scenes
@@ -341,11 +342,18 @@ fn render_seam_view(ui: &Ui, view: &mut ConnectedView) -> SeamViewScene {
     let close_seam_view = ui.button(im_str!("Close"), [0.0, 0.0]);
 
     ui.same_line(50.0);
-    if ui.button(im_str!("Export"), [0.0, 0.0]) {
-        view.export_form = Some(SeamExportForm::new(
-            seam.clone(),
-            view.seam_processor.filter(),
+    if let Some(progress) = view.export_progress.lock().unwrap().as_ref() {
+        ui.text(im_str!(
+            "Exporting ({:.1}%)",
+            progress.complete as f32 / progress.total as f32 * 100.0,
         ));
+    } else {
+        if ui.button(im_str!("Export"), [0.0, 0.0]) {
+            view.export_form = Some(SeamExportForm::new(
+                seam.clone(),
+                view.seam_processor.filter(),
+            ));
+        }
     }
 
     ui.spacing();
@@ -404,10 +412,14 @@ fn get_seam_view_camera(seam_view: &mut SeamViewState, viewport: &Viewport) -> S
     }
 }
 
-fn render_export_form(ui: &Ui, form: &mut SeamExportForm) -> bool {
+fn render_export_form(ui: &Ui, view: &mut ConnectedView) {
+    let form = view.export_form.as_mut().unwrap();
+    let progress_cell = view.export_progress.clone();
+
     let style_token = ui.push_style_color(imgui::StyleColor::WindowBg, [0.06, 0.06, 0.06, 0.94]);
 
     let mut opened = true;
+    let mut begun = false;
     imgui::Window::new(im_str!("Export seam data"))
         .size([500.0, 300.0], Condition::Appearing)
         .opened(&mut opened)
@@ -482,17 +494,38 @@ fn render_export_form(ui: &Ui, form: &mut SeamExportForm) -> bool {
                 form.max_w = form.max_w_buffer.to_str().parse::<f32>().ok();
             }
 
-            if let Some(min_w) = form.min_w {
-                if let Some(max_w) = form.max_w {
-                    ui.spacing();
-                    if ui.button(im_str!("Export"), [0.0, 0.0]) {
-                        let w_range = RangeF32::inclusive(min_w, max_w);
-                        dbg!(w_range);
-                    }
+            if let (Some(min_w), Some(max_w)) = (form.min_w, form.max_w) {
+                ui.spacing();
+                if ui.button(im_str!("Export"), [0.0, 0.0]) {
+                    begun = true;
+
+                    let seam = form.seam.clone();
+                    let filter = form.filter;
+                    let include_small_w = form.include_small_w;
+                    let w_range = RangeF32::inclusive(min_w, max_w);
+
+                    thread::spawn(move || {
+                        save_seam_to_csv(
+                            &mut std::io::stdout().lock(),
+                            |progress| {
+                                if let Ok(mut progress_cell) = progress_cell.try_lock() {
+                                    *progress_cell = progress
+                                }
+                            },
+                            &seam,
+                            filter,
+                            include_small_w,
+                            w_range,
+                        )
+                        .unwrap();
+                    });
                 }
             }
         });
 
+    if !opened || begun {
+        view.export_form = None;
+    }
+
     style_token.pop(ui);
-    opened
 }

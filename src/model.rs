@@ -8,7 +8,7 @@ use crate::{
 };
 use imgui::{im_str, ImString};
 use nalgebra::Point3;
-use std::fs;
+use std::{fs, sync::Arc, sync::Mutex};
 use sysinfo::{System, SystemExt};
 
 #[derive(Debug)]
@@ -58,6 +58,7 @@ pub struct ConnectedView {
     pub seam_view: Option<SeamViewState>,
     pub fps_string: String,
     pub export_form: Option<SeamExportForm>,
+    pub export_progress: Arc<Mutex<Option<ExportProgress>>>,
 }
 
 impl ConnectedView {
@@ -71,6 +72,7 @@ impl ConnectedView {
             seam_view: None,
             fps_string: String::new(),
             export_form: None,
+            export_progress: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -97,6 +99,7 @@ impl SeamViewState {
     }
 }
 
+// TODO: Included statuses (gap, overlap, gaps + overlaps, all points)
 #[derive(Debug)]
 pub struct SeamExportForm {
     pub seam: Seam,
@@ -126,4 +129,10 @@ impl SeamExportForm {
             max_w_buffer,
         }
     }
+}
+
+#[derive(Debug)]
+pub struct ExportProgress {
+    pub complete: usize,
+    pub total: usize,
 }
