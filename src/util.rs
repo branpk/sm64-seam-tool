@@ -284,7 +284,7 @@ pub fn save_seam_to_csv(
         let (y, status) = seam.check_point(w, filter);
         complete += 1;
 
-        if complete % 1000 == 0 {
+        if complete % 100_000 == 0 {
             set_progress(Some(ExportProgress { complete, total }));
         }
 
@@ -301,6 +301,7 @@ pub fn save_seam_to_csv(
         }
     }
 
+    writer.flush()?;
     set_progress(None);
     Ok(())
 }

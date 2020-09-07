@@ -1,4 +1,4 @@
-use std::thread;
+use std::{fs, io::BufWriter, thread};
 
 use crate::{
     edge::{Edge, Orientation, ProjectedPoint, ProjectionAxis},
@@ -17,6 +17,7 @@ use crate::{
         get_mouse_ray, get_norm_mouse_pos, sync_to_game,
     },
 };
+use fs::File;
 use imgui::{im_str, Condition, MouseButton, Ui};
 use itertools::Itertools;
 use nalgebra::{Point3, Vector3};
@@ -448,6 +449,53 @@ fn render_export_form(ui: &Ui, view: &mut ConnectedView) {
             ui.text(im_str!("edge 1: {}", show_edge(form.seam.edge1)));
             ui.text(im_str!("edge 2: {}", show_edge(form.seam.edge2)));
 
+            ui.separator();
+
+            ui.spacing();
+            ui.text("Filename: ");
+            ui.same_line(100.0);
+            ui.set_next_item_width(200.0);
+            if ui
+                .input_text(im_str!("##filename"), &mut form.filename_buffer)
+                .build()
+            {
+                let filename = form.filename_buffer.to_str().trim();
+                if filename.is_empty() {
+                    form.filename = None;
+                } else {
+                    form.filename = Some(filename.to_owned());
+                }
+            }
+
+            ui.spacing();
+            let coord_axis_str = match form.seam.edge1.projection_axis {
+                ProjectionAxis::X => "z",
+                ProjectionAxis::Z => "x",
+            };
+
+            ui.text(im_str!("min {}: ", coord_axis_str));
+            ui.same_line(60.0);
+            ui.set_next_item_width(100.0);
+            if ui
+                .input_text(im_str!("##min-w"), &mut form.min_w_buffer)
+                .build()
+            {
+                form.min_w = form.min_w_buffer.to_str().parse::<f32>().ok();
+            }
+
+            ui.text(im_str!("max {}: ", coord_axis_str));
+            ui.same_line(60.0);
+            ui.set_next_item_width(100.0);
+            if ui
+                .input_text(im_str!("##max-w"), &mut form.max_w_buffer)
+                .build()
+            {
+                form.max_w = form.max_w_buffer.to_str().parse::<f32>().ok();
+            }
+
+            ui.spacing();
+            ui.checkbox(im_str!("Include [-1, 1]"), &mut form.include_small_w);
+
             ui.spacing();
             let all_filters = PointFilter::all();
             let mut filter_index = all_filters
@@ -464,41 +512,14 @@ fn render_export_form(ui: &Ui, view: &mut ConnectedView) {
                 form.filter = all_filters[filter_index];
             }
 
-            ui.spacing();
-            ui.checkbox(im_str!("Include [-1, 1]"), &mut form.include_small_w);
-
-            let coord_axis_str = match form.seam.edge1.projection_axis {
-                ProjectionAxis::X => "z",
-                ProjectionAxis::Z => "x",
-            };
-
-            ui.spacing();
-
-            ui.text(im_str!("min {}: ", coord_axis_str));
-            ui.same_line(80.0);
-            ui.set_next_item_width(100.0);
-            if ui
-                .input_text(im_str!("##min-w"), &mut form.min_w_buffer)
-                .build()
+            if let (Some(min_w), Some(max_w), Some(filename)) =
+                (form.min_w, form.max_w, form.filename.as_ref())
             {
-                form.min_w = form.min_w_buffer.to_str().parse::<f32>().ok();
-            }
-
-            ui.text(im_str!("max {}: ", coord_axis_str));
-            ui.same_line(80.0);
-            ui.set_next_item_width(100.0);
-            if ui
-                .input_text(im_str!("##max-w"), &mut form.max_w_buffer)
-                .build()
-            {
-                form.max_w = form.max_w_buffer.to_str().parse::<f32>().ok();
-            }
-
-            if let (Some(min_w), Some(max_w)) = (form.min_w, form.max_w) {
                 ui.spacing();
                 if ui.button(im_str!("Export"), [0.0, 0.0]) {
                     begun = true;
 
+                    let mut writer = BufWriter::new(File::create(filename).unwrap());
                     let seam = form.seam.clone();
                     let filter = form.filter;
                     let include_small_w = form.include_small_w;
@@ -506,7 +527,7 @@ fn render_export_form(ui: &Ui, view: &mut ConnectedView) {
 
                     thread::spawn(move || {
                         save_seam_to_csv(
-                            &mut std::io::stdout().lock(),
+                            &mut writer,
                             |progress| {
                                 if let Ok(mut progress_cell) = progress_cell.try_lock() {
                                     *progress_cell = progress

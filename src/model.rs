@@ -103,6 +103,8 @@ impl SeamViewState {
 #[derive(Debug)]
 pub struct SeamExportForm {
     pub seam: Seam,
+    pub filename: Option<String>,
+    pub filename_buffer: ImString,
     pub filter: PointFilter,
     pub include_small_w: bool,
     pub min_w: Option<f32>,
@@ -114,6 +116,8 @@ pub struct SeamExportForm {
 impl SeamExportForm {
     pub fn new(seam: Seam, filter: PointFilter) -> Self {
         let w_range = seam.w_range();
+        let mut filename_buffer = ImString::new("seam.csv");
+        filename_buffer.reserve(32);
         let mut min_w_buffer = im_str!("{}", w_range.start);
         min_w_buffer.reserve(32);
         let mut max_w_buffer = im_str!("{}", prev_f32(w_range.end));
@@ -121,6 +125,8 @@ impl SeamExportForm {
 
         Self {
             seam,
+            filename: Some(filename_buffer.to_string()),
+            filename_buffer,
             filter,
             include_small_w: false,
             min_w: Some(w_range.start),
