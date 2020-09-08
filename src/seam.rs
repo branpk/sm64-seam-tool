@@ -114,17 +114,40 @@ impl Seam {
 
     pub fn check_point(&self, w: f32, filter: PointFilter) -> (f32, PointStatus) {
         let y_approx = self.edge1.approx_y(w);
-        let y_range = RangeF32::inclusive(prev_f32(y_approx), next_f32(y_approx));
 
-        // TODO: Verify that we go far enough to be within each wall separately
+        let mut seen_in1 = false;
+        let mut seen_in2 = false;
 
-        for y in y_range.iter() {
+        let mut y_lo = y_approx;
+        let mut y_hi = next_f32(y_approx);
+
+        for i in 0..20 {
+            if seen_in1 && seen_in2 {
+                break;
+            }
+
+            let y;
+            if i % 2 == 0 {
+                y = y_lo;
+                y_lo = prev_f32(y_lo);
+            } else {
+                y = y_hi;
+                y_hi = next_f32(y_hi);
+            }
+
             let point = ProjectedPoint { w, y };
 
-            if filter.matches(point) {
-                let in1 = self.edge1.accepts_projected(point);
-                let in2 = self.edge2.accepts_projected(point);
+            let in1 = self.edge1.accepts_projected(point);
+            let in2 = self.edge2.accepts_projected(point);
 
+            if in1 && !in2 {
+                seen_in1 = true;
+            }
+            if in2 && !in1 {
+                seen_in2 = true;
+            }
+
+            if filter.matches(point) {
                 if in1 && in2 {
                     return (y, PointStatus::Overlap);
                 }
