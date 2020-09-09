@@ -3,6 +3,7 @@ use crate::{
     game_state::{Config, Globals},
     geo::point_f32_to_f64,
     process::Process,
+    seam::PointStatusFilter,
     seam::{PointFilter, Seam},
     seam_processor::SeamProcessor,
 };
@@ -99,13 +100,13 @@ impl SeamViewState {
     }
 }
 
-// TODO: Included statuses (gap, overlap, gaps + overlaps, all points)
 #[derive(Debug)]
 pub struct SeamExportForm {
     pub seam: Seam,
     pub filename: Option<String>,
     pub filename_buffer: ImString,
-    pub filter: PointFilter,
+    pub point_filter: PointFilter,
+    pub status_filter: PointStatusFilter,
     pub include_small_w: bool,
     pub min_w: Option<f32>,
     pub max_w: Option<f32>,
@@ -127,7 +128,8 @@ impl SeamExportForm {
             seam,
             filename: Some(filename_buffer.to_string()),
             filename_buffer,
-            filter,
+            point_filter: filter,
+            status_filter: PointStatusFilter::GapsAndOverlaps,
             include_small_w: false,
             min_w: Some(w_range.start),
             max_w: Some(prev_f32(w_range.end)),

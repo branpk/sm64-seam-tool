@@ -60,6 +60,47 @@ impl Display for PointStatus {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PointStatusFilter {
+    GapsOnly,
+    OverlapsOnly,
+    GapsAndOverlaps,
+    AllPoints,
+}
+
+impl PointStatusFilter {
+    pub fn all() -> Vec<Self> {
+        vec![
+            Self::GapsOnly,
+            Self::OverlapsOnly,
+            Self::GapsAndOverlaps,
+            Self::AllPoints,
+        ]
+    }
+
+    pub fn matches(&self, status: PointStatus) -> bool {
+        match self {
+            PointStatusFilter::GapsOnly => status == PointStatus::Gap,
+            PointStatusFilter::OverlapsOnly => status == PointStatus::Overlap,
+            PointStatusFilter::GapsAndOverlaps => {
+                status == PointStatus::Gap || status == PointStatus::Overlap
+            }
+            PointStatusFilter::AllPoints => true,
+        }
+    }
+}
+
+impl Display for PointStatusFilter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PointStatusFilter::GapsOnly => write!(f, "gaps only"),
+            PointStatusFilter::OverlapsOnly => write!(f, "overlaps only"),
+            PointStatusFilter::GapsAndOverlaps => write!(f, "gaps and overlaps"),
+            PointStatusFilter::AllPoints => write!(f, "all points"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RangeStatus {
     Checked { has_gap: bool, has_overlap: bool },
     Unchecked,

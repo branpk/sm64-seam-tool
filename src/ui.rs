@@ -11,6 +11,7 @@ use crate::{
     },
     model::{App, ConnectedView, ConnectionMenu, SeamExportForm, SeamViewState},
     seam::PointFilter,
+    seam::PointStatusFilter,
     util::save_seam_to_csv,
     util::{
         build_game_view_scene, canonicalize_process_name, find_hovered_seam, get_focused_seam_info,
@@ -453,7 +454,7 @@ fn render_export_form(ui: &Ui, view: &mut ConnectedView) {
 
             ui.spacing();
             ui.text("Filename: ");
-            ui.same_line(100.0);
+            ui.same_line(80.0);
             ui.set_next_item_width(200.0);
             if ui
                 .input_text(im_str!("##filename"), &mut form.filename_buffer)
@@ -500,28 +501,45 @@ fn render_export_form(ui: &Ui, view: &mut ConnectedView) {
             let all_filters = PointFilter::all();
             let mut filter_index = all_filters
                 .iter()
-                .position(|filter| form.filter == *filter)
+                .position(|filter| form.point_filter == *filter)
                 .unwrap();
-            ui.set_next_item_width(100.0);
-            if imgui::ComboBox::new(im_str!("##filter")).build_simple(
+            ui.set_next_item_width(150.0);
+            if imgui::ComboBox::new(im_str!("##point-filter")).build_simple(
                 ui,
                 &mut filter_index,
                 &all_filters,
                 &|filter| im_str!("{}", filter).into(),
             ) {
-                form.filter = all_filters[filter_index];
+                form.point_filter = all_filters[filter_index];
+            }
+
+            ui.spacing();
+            let all_filters = PointStatusFilter::all();
+            let mut filter_index = all_filters
+                .iter()
+                .position(|filter| form.status_filter == *filter)
+                .unwrap();
+            ui.set_next_item_width(150.0);
+            if imgui::ComboBox::new(im_str!("##status-filter")).build_simple(
+                ui,
+                &mut filter_index,
+                &all_filters,
+                &|filter| im_str!("{}", filter).into(),
+            ) {
+                form.status_filter = all_filters[filter_index];
             }
 
             if let (Some(min_w), Some(max_w), Some(filename)) =
                 (form.min_w, form.max_w, form.filename.as_ref())
             {
-                ui.spacing();
+                (0..3).for_each(|_| ui.spacing());
                 if ui.button(im_str!("Export"), [0.0, 0.0]) {
                     begun = true;
 
                     let mut writer = BufWriter::new(File::create(filename).unwrap());
                     let seam = form.seam.clone();
-                    let filter = form.filter;
+                    let point_filter = form.point_filter;
+                    let status_filter = form.status_filter;
                     let include_small_w = form.include_small_w;
                     let w_range = RangeF32::inclusive(min_w, max_w);
 
@@ -534,7 +552,8 @@ fn render_export_form(ui: &Ui, view: &mut ConnectedView) {
                                 }
                             },
                             &seam,
-                            filter,
+                            point_filter,
+                            status_filter,
                             include_small_w,
                             w_range,
                         )

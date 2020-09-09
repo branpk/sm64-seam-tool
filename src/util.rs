@@ -8,6 +8,7 @@ use crate::{
     process::Process,
     seam::PointFilter,
     seam::PointStatus,
+    seam::PointStatusFilter,
     seam::Seam,
     seam_processor::{SeamOutput, SeamProcessor, SeamProgress},
 };
@@ -261,7 +262,8 @@ pub fn save_seam_to_csv(
     writer: &mut impl Write,
     mut set_progress: impl FnMut(Option<ExportProgress>),
     seam: &Seam,
-    filter: PointFilter,
+    point_filter: PointFilter,
+    status_filter: PointStatusFilter,
     include_small_w: bool,
     w_range: RangeF32,
 ) -> io::Result<()> {
@@ -281,14 +283,14 @@ pub fn save_seam_to_csv(
     let mut complete = 0;
 
     for w in w_ranges.into_iter().flat_map(|range| range.iter()) {
-        let (y, status) = seam.check_point(w, filter);
+        let (y, status) = seam.check_point(w, point_filter);
         complete += 1;
 
         if complete % 100_000 == 0 {
             set_progress(Some(ExportProgress { complete, total }));
         }
 
-        if status != PointStatus::None {
+        if status_filter.matches(status) {
             write!(
                 writer,
                 "{},{:#08X},{},{:#08X},{}\n",
