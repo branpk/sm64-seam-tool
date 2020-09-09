@@ -1,5 +1,5 @@
 use crate::game_state::Surface;
-use itertools::{iproduct, Itertools};
+use itertools::iproduct;
 use std::{
     collections::{HashMap, HashSet},
     ops::RangeInclusive,

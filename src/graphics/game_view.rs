@@ -1,12 +1,11 @@
+#![allow(unused)]
+
 use super::{
     pipelines::Pipelines,
     util::{birds_eye_transforms, rotate_transforms, seam_segment_color},
     Camera, GameViewScene, SurfaceType, Vertex,
 };
-use crate::{
-    geo::{Point3f, Vector3f},
-    seam::RangeStatus,
-};
+use crate::geo::{Point3f, Vector3f};
 use bytemuck::cast_slice;
 use nalgebra::distance;
 use std::f32::consts::PI;

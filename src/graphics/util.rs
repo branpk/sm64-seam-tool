@@ -1,6 +1,5 @@
 use super::{BirdsEyeCamera, RotateCamera, SeamViewCamera, Viewport};
 use crate::{
-    edge::{Orientation, ProjectionAxis},
     geo::{direction_to_pitch_yaw, Matrix4f, Point3f, Vector3f, Vector4f},
     seam::{PointStatus, RangeStatus},
 };

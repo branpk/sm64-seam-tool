@@ -2,9 +2,9 @@ use crate::{
     geo::{Point3f, Vector3f},
     process::Process,
 };
-use bytemuck::{cast_slice, from_bytes, Pod, Zeroable};
+use bytemuck::from_bytes;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, mem::size_of};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {

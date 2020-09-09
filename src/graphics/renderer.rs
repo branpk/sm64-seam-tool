@@ -1,19 +1,8 @@
 use super::{
-    game_view::GameViewSceneBundle,
-    pipelines::Pipelines,
-    seam_view::SeamViewSceneBundle,
-    util::{birds_eye_transforms, rotate_transforms},
-    BirdsEyeCamera, Camera, GameViewScene, RotateCamera, Scene, SeamViewScene, SurfaceType, Vertex,
-    Viewport, DEPTH_TEXTURE_FORMAT, NUM_OUTPUT_SAMPLES,
+    game_view::GameViewSceneBundle, pipelines::Pipelines, seam_view::SeamViewSceneBundle, Scene,
+    DEPTH_TEXTURE_FORMAT, NUM_OUTPUT_SAMPLES,
 };
-use crate::{
-    geo::{direction_to_pitch_yaw, Matrix4f, Point3f, Vector3f, Vector4f},
-    seam::RangeStatus,
-};
-use bytemuck::cast_slice;
-use nalgebra::distance;
-use std::{f32::consts::PI, iter};
-use wgpu::util::DeviceExt;
+use std::iter;
 
 pub struct Renderer {
     multisample_texture: Option<((u32, u32), wgpu::Texture)>,

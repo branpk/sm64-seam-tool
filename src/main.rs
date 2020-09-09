@@ -1,48 +1,13 @@
-use bytemuck::{cast, from_bytes};
-use edge::{Edge, Orientation, ProjectedPoint, ProjectionAxis};
-use float_range::{flush_f32_to_zero, next_f32, prev_f32, RangeF32};
-use game_state::{Config, GameState, Globals};
-use geo::{
-    direction_to_pitch_yaw, pitch_yaw_to_direction, point_f32_to_f64, point_f64_to_f32, Point3f,
-    Vector3f, Vector4f,
-};
-use graphics::{
-    seam_view_screen_to_world, BirdsEyeCamera, Camera, GameViewScene, ImguiRenderer, Renderer,
-    RotateCamera, Scene, SeamInfo, SeamSegment, SeamViewCamera, SeamViewScene, SurfaceType,
-    Viewport,
-};
-use imgui::{im_str, Condition, ConfigFlags, Context, DrawData, ImString, MouseButton, Ui};
+use graphics::{ImguiRenderer, Renderer};
+use imgui::{ConfigFlags, Context};
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
-use itertools::Itertools;
-use lazy_static::lazy_static;
 use model::App;
-use nalgebra::{Point3, Vector3};
-use process::Process;
-use read_process_memory::{copy_address, TryIntoProcessHandle};
-use seam::{PointFilter, Seam};
-use seam_processor::{SeamProcessor, SeamProgress};
-use serde::{Deserialize, Serialize};
-use std::{
-    borrow::Cow,
-    collections::{HashMap, HashSet},
-    convert::TryInto,
-    f32::consts::PI,
-    fs::{self, File},
-    io::Read,
-    iter,
-    time::{Duration, Instant},
-};
-use sysinfo::{ProcessExt, System, SystemExt};
+use std::time::{Duration, Instant};
 use ui::render_app;
-use util::{
-    build_game_view_scene, find_hovered_seam, get_focused_seam_info, get_mouse_ray,
-    get_norm_mouse_pos, get_segment_info,
-};
 use winit::{
-    dpi::PhysicalSize,
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    window::{Window, WindowBuilder},
+    window::WindowBuilder,
 };
 
 mod edge;

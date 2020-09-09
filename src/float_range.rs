@@ -90,10 +90,6 @@ impl RangeF32 {
         Self::inclusive_exclusive(min, next_f32(max))
     }
 
-    pub fn empty() -> Self {
-        Self::inclusive_exclusive(0.0, 0.0)
-    }
-
     pub fn is_empty(&self) -> bool {
         self.end <= self.start
     }
@@ -117,19 +113,5 @@ impl RangeF32 {
             RangeF32::inclusive_exclusive(self.start, other.start.min(self.end)),
             RangeF32::inclusive_exclusive(other.end.max(self.start), self.end),
         )
-    }
-
-    pub fn split(&self, segment_length: f32) -> impl Iterator<Item = Self> {
-        let start = self.start;
-        let end = self.end;
-
-        (0..)
-            .map(move |i| {
-                RangeF32::inclusive_exclusive(
-                    start + i as f32 * segment_length,
-                    (start + (i + 1) as f32 * segment_length).min(end),
-                )
-            })
-            .take_while(|segment| !segment.is_empty())
     }
 }

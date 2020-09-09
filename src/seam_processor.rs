@@ -132,13 +132,13 @@ impl SeamProgress {
         }
     }
 
-    fn total_range(&self) -> RangeF32 {
-        if let Some((segment, _)) = self.complete.first() {
-            RangeF32::inclusive_exclusive(segment.start, self.remaining.end)
-        } else {
-            self.remaining
-        }
-    }
+    // fn total_range(&self) -> RangeF32 {
+    //     if let Some((segment, _)) = self.complete.first() {
+    //         RangeF32::inclusive_exclusive(segment.start, self.remaining.end)
+    //     } else {
+    //         self.remaining
+    //     }
+    // }
 }
 
 #[derive(Debug)]

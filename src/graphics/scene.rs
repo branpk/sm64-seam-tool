@@ -41,6 +41,7 @@ pub struct Viewport {
     pub height: f32,
 }
 
+#[allow(unused)]
 #[derive(Debug, Clone)]
 pub enum Camera {
     Rotate(RotateCamera),

@@ -1,8 +1,6 @@
 use super::{
-    pipelines::Pipelines,
-    seam_point_color, seam_view_world_to_screen, upload_vertex_buffer,
-    util::{birds_eye_transforms, seam_segment_color},
-    FocusedSeamData, SeamInfo, SeamSegment, SeamViewCamera, SeamViewScene, Vertex,
+    pipelines::Pipelines, seam_point_color, seam_view_world_to_screen, upload_vertex_buffer,
+    util::seam_segment_color, FocusedSeamData, SeamSegment, SeamViewScene, Vertex,
 };
 use crate::{
     geo::{point_f32_to_f64, Matrix4f, Point3f, Vector3f},

@@ -1,5 +1,5 @@
 use crate::{
-    float_range::{next_f32, prev_f32, RangeF32},
+    float_range::prev_f32,
     game_state::{Config, Globals},
     geo::point_f32_to_f64,
     process::Process,

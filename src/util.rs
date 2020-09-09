@@ -7,7 +7,6 @@ use crate::{
     model::ExportProgress,
     process::Process,
     seam::PointFilter,
-    seam::PointStatus,
     seam::PointStatusFilter,
     seam::Seam,
     seam_processor::{SeamOutput, SeamProcessor, SeamProgress},
@@ -18,7 +17,6 @@ use std::{
     f32::consts::PI,
     io,
     io::Write,
-    sync::mpsc::Sender,
     time::{Duration, Instant},
 };
 
