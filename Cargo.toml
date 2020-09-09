@@ -1,5 +1,5 @@
 [package]
-name = "seams-2"
+name = "sm64-seam-tool"
 version = "0.1.0"
 edition = "2018"
 

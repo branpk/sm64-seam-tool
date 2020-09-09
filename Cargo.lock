@@ -1622,29 +1622,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d29ab0c6d3fc0ee92fe66e2d99f700eab17a8d57d1c1d3b748380fb20baa78cd"
 
 [[package]]
-name = "seams-2"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "futures",
- "imgui",
- "imgui-winit-support",
- "itertools",
- "json5",
- "lazy_static",
- "nalgebra",
- "ordered-float 2.0.0",
- "parse_int",
- "rayon",
- "read-process-memory",
- "serde",
- "sysinfo",
- "walkdir",
- "wgpu",
- "winit",
-]
-
-[[package]]
 name = "serde"
 version = "1.0.115"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1693,6 +1670,29 @@ name = "slab"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c111b5bd5695e56cffe5129854aa230b39c93a305372fdbb2668ca2394eea9f8"
+
+[[package]]
+name = "sm64-seam-tool"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "futures",
+ "imgui",
+ "imgui-winit-support",
+ "itertools",
+ "json5",
+ "lazy_static",
+ "nalgebra",
+ "ordered-float 2.0.0",
+ "parse_int",
+ "rayon",
+ "read-process-memory",
+ "serde",
+ "sysinfo",
+ "walkdir",
+ "wgpu",
+ "winit",
+]
 
 [[package]]
 name = "smallvec"

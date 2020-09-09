@@ -29,7 +29,7 @@ fn main() {
 
         let event_loop = EventLoop::new();
         let window = WindowBuilder::new()
-            .with_title("seams legit 2.0")
+            .with_title("Don't let your seams be seams")
             .build(&event_loop)
             .unwrap();
 
