@@ -30,3 +30,7 @@ Clicking on a seam opens it in another pane. From there, you can zoom in and dra
 Note that when you drag or zoom, it may take a couple seconds to update.
 
 The "Export" button allows you to save seam data to a CSV. The file will be saved in the same folder as the .exe using the provided filename. The rest of the program ignores the range [-1, 1], but it can optionally be included when exporting. You can also choose to include only gaps, only overlaps, both, or all points. If you choose all points, note that the listed y values are not particularly meaningful.
+
+## Other game versions and emulators
+
+Support for other game versions, rom hacks, and emulators can be added by editing config.json with the appropriate values. Feel free to submit a pull request with these changes.
