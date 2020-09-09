@@ -18,7 +18,7 @@ use std::{
 };
 
 const DEFAULT_SEGMENT_LENGTH: f32 = 20.0;
-const MAX_POINTS_RECORDED_INDIVIDUALLY: usize = 10_000;
+const MAX_POINTS_RECORDED_INDIVIDUALLY: usize = 500;
 
 #[derive(Debug, Clone, PartialEq)]
 struct SeamRequest {
@@ -354,19 +354,24 @@ fn processor_thread(
                 .map(|(_, (num_interesting_points, _))| num_interesting_points)
                 .sum();
 
-            // FIXME: Check bug: sometimes it seems like there are < 10 points on screen
             if request.is_focused && num_interesting_points <= MAX_POINTS_RECORDED_INDIVIDUALLY {
-                // TODO: Parallelize
                 let points: Vec<(ProjectedPoint<f32>, PointStatus)> = segments
-                    .into_iter()
-                    .flat_map(|segment| {
-                        segment.iter().map(|w| {
-                            let (y, status) = request.seam.check_point(w, request.filter);
-                            (ProjectedPoint { w, y }, status)
-                        })
+                    .into_par_iter()
+                    .map(|segment| {
+                        segment
+                            .iter()
+                            .map(|w| {
+                                let (y, status) = request.seam.check_point(w, request.filter);
+                                (ProjectedPoint { w, y }, status)
+                            })
+                            .filter(|(_, status)| *status != PointStatus::None)
+                            .collect::<Vec<_>>()
                     })
-                    .filter(|(_, status)| *status != PointStatus::None)
+                    .collect::<Vec<_>>()
+                    .into_iter()
+                    .flat_map(|iterator| iterator)
                     .collect();
+
                 let _ = output.send((request.clone(), SeamOutput::Points(SeamPoints { points })));
             } else {
                 for (segment, (_, status)) in segment_statuses {

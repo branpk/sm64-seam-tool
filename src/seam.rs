@@ -204,7 +204,7 @@ impl Seam {
     pub fn check_range(&self, w_range: RangeF32, filter: PointFilter) -> (usize, RangeStatus) {
         let mut has_gap = false;
         let mut has_overlap = false;
-        let mut num_interesting_points = w_range.count();
+        let mut num_interesting_points = 0;
 
         for w in w_range.iter() {
             match self.check_point(w, filter).1 {
