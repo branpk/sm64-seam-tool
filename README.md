@@ -11,7 +11,7 @@ The first time you enter an area, the program has to detect gaps and overlaps in
 Colors:
 - Blue = overlap, no gap
 - Green = gap, no overlap
-- Teal = both gap and overlap
+- Cyan = both gap and overlap
 - White = neither
 - Dark grey = not yet checked
 - Red = skipped - points in the range [-1, 1] are skipped for performance reasons
@@ -30,6 +30,10 @@ Clicking on a seam opens it in another pane. From there, you can zoom in and dra
 Note that when you drag or zoom, it may take a couple seconds to update.
 
 The "Export" button allows you to save seam data to a CSV. The file will be saved in the same folder as the .exe using the provided filename. The rest of the program ignores the range [-1, 1], but it can optionally be included when exporting. You can also choose to include only gaps, only overlaps, both, or all points. If you choose all points, note that the listed y values are not particularly meaningful.
+
+After exporting, the "Export" button is replaced with a message that shows the progress of the export. You can close the seam view or switch seams and the export will continue in the background, but closing the program will interrupt it.
+
+**Warning**: If you export a seam close to the origin and you include [-1, 1], the resulting file may be huge (over 100 GB). The only way to kill an export is to close the program.
 
 ## Other game versions and emulators
 
