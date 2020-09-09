@@ -21,7 +21,7 @@
             "name": "JP",
             "globals": {
                 "global_timer": 0x8032c694,
-                "lakitu_state": 0x8033c698,
+                "lakitu_state": 0x8033b328,
                 "surfaces_allocated": 0x8035fe00,
                 "surface_pool": 0x8038ee9c,
             }
