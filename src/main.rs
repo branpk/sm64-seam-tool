@@ -1,3 +1,5 @@
+#![windows_subsystem = "windows"]
+
 use graphics::{ImguiRenderer, Renderer};
 use imgui::{ConfigFlags, Context};
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
