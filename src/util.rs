@@ -288,7 +288,9 @@ pub fn get_visible_w_range_for_seam(
 }
 
 pub fn canonicalize_process_name(name: &str) -> String {
-    name.trim_end_matches(".exe").to_lowercase()
+    name.trim_end_matches(".exe")
+        .replace("_", "-")
+        .to_lowercase()
 }
 
 pub fn sync_to_game(process: &Process, globals: &Globals) {
