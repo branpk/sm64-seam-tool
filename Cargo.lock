@@ -902,6 +902,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "log-panics"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae0136257df209261daa18d6c16394757c63e032e27aafd8b07788b051082bef"
+dependencies = [
+ "log 0.4.11",
+]
+
+[[package]]
 name = "mach"
 version = "0.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1666,6 +1675,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "simple-logging"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b00d48e85675326bb182a2286ea7c1a0b264333ae10f27a937a72be08628b542"
+dependencies = [
+ "lazy_static",
+ "log 0.4.11",
+ "thread-id",
+]
+
+[[package]]
 name = "slab"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1682,12 +1702,15 @@ dependencies = [
  "itertools",
  "json5",
  "lazy_static",
+ "log 0.4.11",
+ "log-panics",
  "nalgebra",
  "ordered-float 2.0.0",
  "parse_int",
  "rayon",
  "read-process-memory",
  "serde",
+ "simple-logging",
  "sysinfo",
  "walkdir",
  "wgpu",
@@ -1799,6 +1822,17 @@ dependencies = [
  "proc-macro2 1.0.19",
  "quote 1.0.7",
  "syn",
+]
+
+[[package]]
+name = "thread-id"
+version = "3.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7fbf4c9d56b320106cd64fd024dadfa0be7cb4706725fc44a7d7ce952d820c1"
+dependencies = [
+ "libc",
+ "redox_syscall",
+ "winapi 0.3.9",
 ]
 
 [[package]]

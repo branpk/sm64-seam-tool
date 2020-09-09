@@ -3,6 +3,7 @@
 use graphics::{ImguiRenderer, Renderer};
 use imgui::{ConfigFlags, Context};
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
+use log::LevelFilter;
 use model::App;
 use std::time::{Duration, Instant};
 use ui::render_app;
@@ -26,6 +27,9 @@ mod ui;
 mod util;
 
 fn main() {
+    log_panics::init();
+    simple_logging::log_to_file("log.txt", LevelFilter::Info).unwrap();
+
     futures::executor::block_on(async {
         let instance = wgpu::Instance::new(wgpu::BackendBit::PRIMARY);
 
