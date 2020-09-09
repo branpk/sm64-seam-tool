@@ -1,5 +1,7 @@
 use crate::{
     edge::{Edge, ProjectedPoint, ProjectionAxis},
+    float_range::next_f32,
+    float_range::prev_f32,
     float_range::RangeF32,
     game_state::{GameState, Globals},
     geo::{direction_to_pitch_yaw, pitch_yaw_to_direction, Point3f, Vector3f},
@@ -11,7 +13,7 @@ use crate::{
     seam::Seam,
     seam_processor::{SeamOutput, SeamProcessor, SeamProgress},
 };
-use graphics::{FocusedSeamData, FocusedSeamInfo, SeamInfo, SeamSegment};
+use graphics::{FocusedSeamData, FocusedSeamInfo, SeamInfo, SeamSegment, SeamViewCamera};
 use std::{
     collections::HashSet,
     f32::consts::PI,
@@ -239,6 +241,50 @@ pub fn get_focused_seam_info(seam: &Seam, output: &SeamOutput) -> FocusedSeamInf
             }
         }
     }
+}
+
+pub fn get_visible_w_range(
+    camera: &SeamViewCamera,
+    viewport: &Viewport,
+    projection_axis: ProjectionAxis,
+) -> RangeF32 {
+    let span_x = camera.span_y * viewport.width as f64 / viewport.height as f64;
+    let camera_w = match projection_axis {
+        ProjectionAxis::X => camera.pos.z,
+        ProjectionAxis::Z => camera.pos.x,
+    };
+
+    let h_min_w = prev_f32((camera_w - span_x / 2.0) as f32);
+    let h_max_w = next_f32((camera_w + span_x / 2.0) as f32);
+
+    RangeF32::inclusive(h_min_w, h_max_w)
+}
+
+pub fn get_visible_y_range(camera: &SeamViewCamera) -> RangeF32 {
+    RangeF32::inclusive(
+        prev_f32((camera.pos.y - camera.span_y / 2.0) as f32),
+        next_f32((camera.pos.y + camera.span_y / 2.0) as f32),
+    )
+}
+
+pub fn get_visible_w_range_for_seam(
+    camera: &SeamViewCamera,
+    viewport: &Viewport,
+    seam: &Seam,
+) -> RangeF32 {
+    let h_range = get_visible_w_range(camera, viewport, seam.edge1.projection_axis);
+
+    let top_y = camera.pos.y + camera.span_y / 2.0;
+    let top_w = seam.edge1.approx_w_f64(top_y);
+    let bottom_y = camera.pos.y - camera.span_y / 2.0;
+    let bottom_w = seam.edge1.approx_w_f64(bottom_y);
+
+    let v_range = RangeF32::inclusive(
+        prev_f32(top_w.min(bottom_w) as f32),
+        next_f32(top_w.max(bottom_w) as f32),
+    );
+
+    seam.w_range().intersect(&h_range).intersect(&v_range)
 }
 
 pub fn canonicalize_process_name(name: &str) -> String {

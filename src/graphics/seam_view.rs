@@ -185,7 +185,7 @@ fn get_seam_point_vertices(
 
 fn get_grid_line_vertices(scene: &SeamViewScene) -> Vec<Vertex> {
     let mut vertices = Vec::new();
-    let color = [0.8, 0.8, 0.8, 1.0];
+    let color = [0.4, 0.4, 0.4, 1.0];
 
     for &world_pos in &scene.vertical_grid_lines {
         let screen_pos = seam_view_world_to_screen(&scene.camera, &scene.viewport, world_pos);

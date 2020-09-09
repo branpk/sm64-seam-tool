@@ -12,6 +12,9 @@ use crate::{
     model::{App, ConnectedView, ConnectionMenu, SeamExportForm, SeamViewState},
     seam::PointFilter,
     seam::PointStatusFilter,
+    util::get_visible_w_range,
+    util::get_visible_w_range_for_seam,
+    util::get_visible_y_range,
     util::save_seam_to_csv,
     util::{
         build_game_view_scene, canonicalize_process_name, find_hovered_seam, get_focused_seam_info,
@@ -287,28 +290,7 @@ fn render_seam_view(ui: &Ui, view: &mut ConnectedView) -> SeamViewScene {
     }
 
     let segment_length = camera.span_y as f32 / 100.0;
-
-    let margin = 1.5;
-
-    let span_w = camera.span_y * viewport.width as f64 / viewport.height as f64;
-    let w = match seam.edge1.projection_axis {
-        ProjectionAxis::X => camera.pos.z,
-        ProjectionAxis::Z => camera.pos.x,
-    };
-    let left_w = (w - margin * span_w / 2.0) as f32;
-    let right_w = (w + margin * span_w / 2.0) as f32;
-
-    let top_y = (camera.pos.y + margin * camera.span_y / 2.0) as f32;
-    let bottom_y = (camera.pos.y - margin * camera.span_y / 2.0) as f32;
-    let top_w = seam.edge1.approx_w(top_y) - 1.0;
-    let bottom_w = seam.edge1.approx_w(bottom_y) + 1.0;
-
-    // TODO: Compute this better to avoid things disappearing when zooming in
-    let min_w = (left_w.max(top_w.min(bottom_w)).max(seam.w_range().start) / segment_length)
-        .floor()
-        * segment_length;
-    let max_w = right_w.min(top_w.max(bottom_w)).min(seam.w_range().end);
-    let visible_w_range = RangeF32::inclusive(min_w, max_w);
+    let visible_w_range = get_visible_w_range_for_seam(&camera, &viewport, &seam);
 
     let progress =
         view.seam_processor
@@ -317,16 +299,16 @@ fn render_seam_view(ui: &Ui, view: &mut ConnectedView) -> SeamViewScene {
     let mut vertical_grid_lines = Vec::new();
     let mut horizontal_grid_lines = Vec::new();
 
-    let (left_w_range, right_w_range) =
-        RangeF32::inclusive(left_w, right_w).cut_out(&RangeF32::inclusive_exclusive(-1.0, 1.0));
+    let w_range = get_visible_w_range(&camera, &viewport, seam.edge1.projection_axis);
+    let (left_w_range, right_w_range) = w_range.cut_out(&RangeF32::inclusive_exclusive(-1.0, 1.0));
     if left_w_range.count() + right_w_range.count() < 100 {
         for w in left_w_range.iter().chain(right_w_range.iter()) {
             vertical_grid_lines.push(Point3::new(w as f64, 0.0, w as f64));
         }
     }
 
-    let (left_y_range, right_y_range) =
-        RangeF32::inclusive(bottom_y, top_y).cut_out(&RangeF32::inclusive_exclusive(-1.0, 1.0));
+    let y_range = get_visible_y_range(&camera);
+    let (left_y_range, right_y_range) = y_range.cut_out(&RangeF32::inclusive_exclusive(-1.0, 1.0));
     if left_y_range.count() + right_y_range.count() < 100 {
         for y in left_y_range.iter().chain(right_y_range.iter()) {
             horizontal_grid_lines.push(Point3::new(0.0, y as f64, 0.0));

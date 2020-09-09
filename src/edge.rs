@@ -141,11 +141,11 @@ impl Edge {
         y1 + self.approx_t(w) * (y2 - y1)
     }
 
-    pub fn approx_w(&self, y: f32) -> f32 {
-        let w1 = self.vertex1.w as f32;
-        let w2 = self.vertex2.w as f32;
-        let y1 = self.vertex1.y as f32;
-        let y2 = self.vertex2.y as f32;
+    pub fn approx_w_f64(&self, y: f64) -> f64 {
+        let w1 = self.vertex1.w as f64;
+        let w2 = self.vertex2.w as f64;
+        let y1 = self.vertex1.y as f64;
+        let y2 = self.vertex2.y as f64;
         w1 + (y - y1) / (y2 - y1) * (w2 - w1)
     }
 
