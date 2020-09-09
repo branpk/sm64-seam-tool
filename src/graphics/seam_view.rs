@@ -158,7 +158,7 @@ fn get_seam_point_vertices(
 ) -> Vec<Vertex> {
     let mut vertices = Vec::new();
 
-    let radius = 0.01;
+    let radius = 0.015;
     let y_offset = radius * Vector3f::y();
     let x_offset = radius * Vector3f::x() * scene.viewport.height / scene.viewport.width;
 

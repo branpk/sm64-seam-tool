@@ -76,7 +76,7 @@ pub fn seam_view_screen_to_world(
 pub fn seam_point_color(status: PointStatus) -> [f32; 4] {
     match status {
         PointStatus::Gap => [0.0, 1.0, 0.0, 1.0],
-        PointStatus::Overlap => [0.0, 0.0, 1.0, 1.0],
+        PointStatus::Overlap => [0.1, 0.1, 1.0, 1.0],
         PointStatus::None => [1.0, 1.0, 1.0, 1.0],
     }
 }
@@ -86,15 +86,15 @@ pub fn seam_segment_color(status: RangeStatus) -> [f32; 4] {
         RangeStatus::Checked {
             has_gap: false,
             has_overlap: false,
-        } => seam_point_color(PointStatus::None),
+        } => [1.0, 1.0, 1.0, 1.0],
         RangeStatus::Checked {
             has_gap: true,
             has_overlap: false,
-        } => seam_point_color(PointStatus::Gap),
+        } => [0.0, 1.0, 0.0, 1.0],
         RangeStatus::Checked {
             has_gap: false,
             has_overlap: true,
-        } => seam_point_color(PointStatus::Overlap),
+        } => [0.0, 0.0, 1.0, 1.0],
         RangeStatus::Checked {
             has_gap: true,
             has_overlap: true,
