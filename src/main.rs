@@ -77,7 +77,7 @@ fn main() {
             .unwrap();
 
         let surface_capabilities = surface.get_capabilities(&adapter);
-        let output_format = surface_capabilities.formats[0];
+        let output_format = wgpu::TextureFormat::Bgra8Unorm;
         let mut surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: output_format,
@@ -149,7 +149,7 @@ fn main() {
                         platform.prepare_render(&ui, &window);
                         let draw_data = imgui.render();
 
-                        let surface_texture = &surface.get_current_texture().unwrap();
+                        let surface_texture = surface.get_current_texture().unwrap();
                         let output_view = surface_texture
                             .texture
                             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -170,6 +170,8 @@ fn main() {
                             (surface_config.width, surface_config.height),
                             draw_data,
                         );
+
+                        surface_texture.present();
 
                         frames_since_fps += 1;
                     }
