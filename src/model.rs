@@ -28,7 +28,7 @@ impl App {
 pub struct ConnectionMenu {
     pub config: Config,
     pub system: System,
-    pub selected_pid: Option<usize>,
+    pub selected_pid: Option<u32>,
     pub base_addr_buffer: ImString,
     pub selected_base_addr: Option<usize>,
     pub selected_version_index: usize,

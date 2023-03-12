@@ -25,7 +25,7 @@ use fs::File;
 use imgui::{im_str, Condition, MouseButton, Ui};
 use itertools::Itertools;
 use nalgebra::{Point3, Vector3};
-use sysinfo::{ProcessExt, SystemExt};
+use sysinfo::{AsU32, ProcessExt, SystemExt};
 
 pub fn render_app(ui: &Ui, app: &mut App) -> Vec<Scene> {
     let style_token = ui.push_style_color(imgui::StyleColor::WindowBg, [0.0, 0.0, 0.0, 0.0]);
@@ -70,7 +70,7 @@ fn render_connection_menu(ui: &Ui, menu: &mut ConnectionMenu) -> Option<Connecte
         .and_then(|selected_pid| {
             processes
                 .iter()
-                .position(|process| process.pid() == selected_pid)
+                .position(|process| process.pid().as_u32() == selected_pid)
         })
         .unwrap_or_else(|| {
             let known_process = processes.iter().position(|process| {
@@ -91,7 +91,7 @@ fn render_connection_menu(ui: &Ui, menu: &mut ConnectionMenu) -> Option<Connecte
         &|process| im_str!("{:8}: {}", process.pid(), process.name()).into(),
     );
     let selected_process = processes.get(process_index).cloned();
-    let selected_pid = selected_process.map(|process| process.pid());
+    let selected_pid = selected_process.map(|process| process.pid().as_u32());
     let changed_pid = selected_pid != menu.selected_pid;
     menu.selected_pid = selected_pid;
 

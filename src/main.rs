@@ -31,7 +31,10 @@ fn main() {
     simple_logging::log_to_file("log.txt", LevelFilter::Info).unwrap();
 
     futures::executor::block_on(async {
-        let instance = wgpu::Instance::new(wgpu::BackendBit::PRIMARY);
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::PRIMARY,
+            ..Default::default()
+        });
 
         let event_loop = EventLoop::new();
         let window = WindowBuilder::new()
@@ -39,34 +42,38 @@ fn main() {
             .build(&event_loop)
             .unwrap();
 
-        let surface = unsafe { instance.create_surface(&window) };
+        let surface = unsafe { instance.create_surface(&window).unwrap() };
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::Default,
+                power_preference: wgpu::PowerPreference::HighPerformance,
                 compatible_surface: Some(&surface),
+                force_fallback_adapter: false,
             })
             .await
             .expect("no compatible device");
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
+                    label: None,
                     features: wgpu::Features::empty(),
                     limits: wgpu::Limits::default(),
-                    shader_validation: true,
                 },
                 None,
             )
             .await
             .unwrap();
 
-        let mut swap_chain_desc = wgpu::SwapChainDescriptor {
-            usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
-            format: wgpu::TextureFormat::Bgra8Unorm,
+        let output_format = wgpu::TextureFormat::Bgra8Unorm;
+        let mut surface_config = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format: output_format,
             width: window.inner_size().width,
             height: window.inner_size().height,
             present_mode: wgpu::PresentMode::Mailbox,
+            alpha_mode: wgpu::CompositeAlphaMode::Auto,
+            view_formats: vec![],
         };
-        let mut swap_chain = device.create_swap_chain(&surface, &swap_chain_desc);
+        surface.configure(&device, &surface_config);
 
         let mut imgui = Context::create();
         imgui.set_ini_filename(None);
@@ -77,10 +84,9 @@ fn main() {
         let mut platform = WinitPlatform::init(&mut imgui);
         platform.attach_window(imgui.io_mut(), &window, HiDpiMode::Default);
 
-        let imgui_renderer =
-            ImguiRenderer::new(&mut imgui, &device, &queue, swap_chain_desc.format);
+        let imgui_renderer = ImguiRenderer::new(&mut imgui, &device, &queue, surface_config.format);
 
-        let mut renderer = Renderer::new(&device, swap_chain_desc.format);
+        let mut renderer = Renderer::new(&device, surface_config.format);
         let mut app = App::new();
 
         let mut last_fps_time = Instant::now();
@@ -106,15 +112,17 @@ fn main() {
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                     WindowEvent::Resized(size) => {
-                        swap_chain_desc.width = size.width;
-                        swap_chain_desc.height = size.height;
-                        swap_chain = device.create_swap_chain(&surface, &swap_chain_desc);
+                        surface_config.width = size.width;
+                        surface_config.height = size.height;
+                        if surface_config.width > 0 && surface_config.height > 0 {
+                            surface.configure(&device, &surface_config);
+                        }
                     }
                     _ => {}
                 },
                 Event::MainEventsCleared => window.request_redraw(),
                 Event::RedrawRequested(_) => {
-                    if swap_chain_desc.width > 0 && swap_chain_desc.height > 0 {
+                    if surface_config.width > 0 && surface_config.height > 0 {
                         last_frame = imgui.io_mut().update_delta_time(last_frame);
 
                         platform
@@ -126,22 +134,25 @@ fn main() {
                         platform.prepare_render(&ui, &window);
                         let draw_data = ui.render();
 
-                        let output_view = &swap_chain.get_current_frame().unwrap().output.view;
+                        let surface_texture = &surface.get_current_texture().unwrap();
+                        let output_view = surface_texture
+                            .texture
+                            .create_view(&wgpu::TextureViewDescriptor::default());
 
                         renderer.render(
                             &device,
                             &queue,
-                            output_view,
-                            (swap_chain_desc.width, swap_chain_desc.height),
-                            swap_chain_desc.format,
+                            &output_view,
+                            (surface_config.width, surface_config.height),
+                            surface_config.format,
                             &scenes,
                         );
 
                         imgui_renderer.render(
                             &device,
                             &queue,
-                            output_view,
-                            (swap_chain_desc.width, swap_chain_desc.height),
+                            &output_view,
+                            (surface_config.width, surface_config.height),
                             draw_data,
                         );
 

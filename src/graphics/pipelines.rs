@@ -88,58 +88,63 @@ fn create_surface_pipeline(
                 push_constant_ranges: &[],
             }),
         ),
-        vertex_stage: wgpu::ProgrammableStageDescriptor {
+        vertex: wgpu::VertexState {
             module: &device
                 .create_shader_module(wgpu::include_spirv!("../../bin/shaders/surface.vert.spv")),
             entry_point: "main",
-        },
-        fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
-            module: &device
-                .create_shader_module(wgpu::include_spirv!("../../bin/shaders/surface.frag.spv")),
-            entry_point: "main",
-        }),
-        rasterization_state: None,
-        primitive_topology: wgpu::PrimitiveTopology::TriangleList,
-        color_states: &[wgpu::ColorStateDescriptor {
-            format: output_format,
-            alpha_blend: wgpu::BlendDescriptor::REPLACE,
-            color_blend: wgpu::BlendDescriptor {
-                src_factor: wgpu::BlendFactor::SrcAlpha,
-                dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                operation: wgpu::BlendOperation::Add,
-            },
-            write_mask: wgpu::ColorWrite::ALL,
-        }],
-        depth_stencil_state: Some(wgpu::DepthStencilStateDescriptor {
-            format: DEPTH_TEXTURE_FORMAT,
-            depth_write_enabled,
-            depth_compare: wgpu::CompareFunction::LessEqual,
-            stencil: wgpu::StencilStateDescriptor::default(),
-        }),
-        vertex_state: wgpu::VertexStateDescriptor {
-            index_format: wgpu::IndexFormat::Uint16,
-            vertex_buffers: &[wgpu::VertexBufferDescriptor {
-                stride: size_of::<Vertex>() as wgpu::BufferAddress,
-                step_mode: wgpu::InputStepMode::Vertex,
+            buffers: &[wgpu::VertexBufferLayout {
+                array_stride: size_of::<Vertex>() as wgpu::BufferAddress,
+                step_mode: wgpu::VertexStepMode::Vertex,
                 attributes: &[
                     // a_Pos
-                    wgpu::VertexAttributeDescriptor {
+                    wgpu::VertexAttribute {
                         offset: offset_of!(Vertex, pos) as wgpu::BufferAddress,
-                        format: wgpu::VertexFormat::Float3,
+                        format: wgpu::VertexFormat::Float32x3,
                         shader_location: 0,
                     },
                     // a_Color
-                    wgpu::VertexAttributeDescriptor {
+                    wgpu::VertexAttribute {
                         offset: offset_of!(Vertex, color) as wgpu::BufferAddress,
-                        format: wgpu::VertexFormat::Float4,
+                        format: wgpu::VertexFormat::Float32x4,
                         shader_location: 1,
                     },
                 ],
             }],
         },
-        sample_count: NUM_OUTPUT_SAMPLES,
-        sample_mask: !0,
-        alpha_to_coverage_enabled: false,
+        fragment: Some(wgpu::FragmentState {
+            module: &device
+                .create_shader_module(wgpu::include_spirv!("../../bin/shaders/surface.frag.spv")),
+            entry_point: "main",
+            targets: &[Some(wgpu::ColorTargetState {
+                format: output_format,
+                blend: Some(wgpu::BlendState {
+                    color: wgpu::BlendComponent {
+                        src_factor: wgpu::BlendFactor::SrcAlpha,
+                        dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                        operation: wgpu::BlendOperation::Add,
+                    },
+                    alpha: wgpu::BlendComponent::REPLACE,
+                }),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+        }),
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            ..Default::default()
+        },
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: DEPTH_TEXTURE_FORMAT,
+            depth_write_enabled,
+            depth_compare: wgpu::CompareFunction::LessEqual,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState {
+            count: NUM_OUTPUT_SAMPLES,
+            mask: !0,
+            alpha_to_coverage_enabled: false,
+        },
+        multiview: None,
     })
 }
 
@@ -159,62 +164,67 @@ fn create_wall_hitbox_pipeline(
                 push_constant_ranges: &[],
             }),
         ),
-        vertex_stage: wgpu::ProgrammableStageDescriptor {
+        vertex: wgpu::VertexState {
             module: &device
                 .create_shader_module(wgpu::include_spirv!("../../bin/shaders/color.vert.spv")),
             entry_point: "main",
-        },
-        fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
-            module: &device
-                .create_shader_module(wgpu::include_spirv!("../../bin/shaders/color.frag.spv")),
-            entry_point: "main",
-        }),
-        rasterization_state: None,
-        primitive_topology,
-        color_states: &[wgpu::ColorStateDescriptor {
-            format: output_format,
-            alpha_blend: wgpu::BlendDescriptor::REPLACE,
-            color_blend: wgpu::BlendDescriptor {
-                src_factor: wgpu::BlendFactor::SrcAlpha,
-                dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                operation: wgpu::BlendOperation::Add,
-            },
-            write_mask: if color_write_enabled {
-                wgpu::ColorWrite::ALL
-            } else {
-                wgpu::ColorWrite::empty()
-            },
-        }],
-        depth_stencil_state: Some(wgpu::DepthStencilStateDescriptor {
-            format: DEPTH_TEXTURE_FORMAT,
-            depth_write_enabled: true,
-            depth_compare: wgpu::CompareFunction::LessEqual,
-            stencil: wgpu::StencilStateDescriptor::default(),
-        }),
-        vertex_state: wgpu::VertexStateDescriptor {
-            index_format: wgpu::IndexFormat::Uint16,
-            vertex_buffers: &[wgpu::VertexBufferDescriptor {
-                stride: size_of::<Vertex>() as wgpu::BufferAddress,
-                step_mode: wgpu::InputStepMode::Vertex,
+            buffers: &[wgpu::VertexBufferLayout {
+                array_stride: size_of::<Vertex>() as wgpu::BufferAddress,
+                step_mode: wgpu::VertexStepMode::Vertex,
                 attributes: &[
                     // a_Pos
-                    wgpu::VertexAttributeDescriptor {
+                    wgpu::VertexAttribute {
                         offset: offset_of!(Vertex, pos) as wgpu::BufferAddress,
-                        format: wgpu::VertexFormat::Float3,
+                        format: wgpu::VertexFormat::Float32x3,
                         shader_location: 0,
                     },
                     // a_Color
-                    wgpu::VertexAttributeDescriptor {
+                    wgpu::VertexAttribute {
                         offset: offset_of!(Vertex, color) as wgpu::BufferAddress,
-                        format: wgpu::VertexFormat::Float4,
+                        format: wgpu::VertexFormat::Float32x4,
                         shader_location: 1,
                     },
                 ],
             }],
         },
-        sample_count: NUM_OUTPUT_SAMPLES,
-        sample_mask: !0,
-        alpha_to_coverage_enabled: false,
+        fragment: Some(wgpu::FragmentState {
+            module: &device
+                .create_shader_module(wgpu::include_spirv!("../../bin/shaders/color.frag.spv")),
+            entry_point: "main",
+            targets: &[Some(wgpu::ColorTargetState {
+                format: output_format,
+                blend: Some(wgpu::BlendState {
+                    color: wgpu::BlendComponent {
+                        src_factor: wgpu::BlendFactor::SrcAlpha,
+                        dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                        operation: wgpu::BlendOperation::Add,
+                    },
+                    alpha: wgpu::BlendComponent::REPLACE,
+                }),
+                write_mask: if color_write_enabled {
+                    wgpu::ColorWrites::ALL
+                } else {
+                    wgpu::ColorWrites::empty()
+                },
+            })],
+        }),
+        primitive: wgpu::PrimitiveState {
+            topology: primitive_topology,
+            ..Default::default()
+        },
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: DEPTH_TEXTURE_FORMAT,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::LessEqual,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState {
+            count: NUM_OUTPUT_SAMPLES,
+            mask: !0,
+            alpha_to_coverage_enabled: false,
+        },
+        multiview: None,
     })
 }
 
@@ -233,57 +243,62 @@ fn create_color_pipeline(
                 push_constant_ranges: &[],
             }),
         ),
-        vertex_stage: wgpu::ProgrammableStageDescriptor {
+        vertex: wgpu::VertexState {
             module: &device
                 .create_shader_module(wgpu::include_spirv!("../../bin/shaders/color.vert.spv")),
             entry_point: "main",
-        },
-        fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
-            module: &device
-                .create_shader_module(wgpu::include_spirv!("../../bin/shaders/color.frag.spv")),
-            entry_point: "main",
-        }),
-        rasterization_state: None,
-        primitive_topology,
-        color_states: &[wgpu::ColorStateDescriptor {
-            format: output_format,
-            alpha_blend: wgpu::BlendDescriptor::REPLACE,
-            color_blend: wgpu::BlendDescriptor {
-                src_factor: wgpu::BlendFactor::SrcAlpha,
-                dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                operation: wgpu::BlendOperation::Add,
-            },
-            write_mask: wgpu::ColorWrite::ALL,
-        }],
-        depth_stencil_state: Some(wgpu::DepthStencilStateDescriptor {
-            format: DEPTH_TEXTURE_FORMAT,
-            depth_write_enabled: true,
-            depth_compare: wgpu::CompareFunction::LessEqual,
-            stencil: wgpu::StencilStateDescriptor::default(),
-        }),
-        vertex_state: wgpu::VertexStateDescriptor {
-            index_format: wgpu::IndexFormat::Uint16,
-            vertex_buffers: &[wgpu::VertexBufferDescriptor {
-                stride: size_of::<Vertex>() as wgpu::BufferAddress,
-                step_mode: wgpu::InputStepMode::Vertex,
+            buffers: &[wgpu::VertexBufferLayout {
+                array_stride: size_of::<Vertex>() as wgpu::BufferAddress,
+                step_mode: wgpu::VertexStepMode::Vertex,
                 attributes: &[
                     // a_Pos
-                    wgpu::VertexAttributeDescriptor {
+                    wgpu::VertexAttribute {
                         offset: offset_of!(Vertex, pos) as wgpu::BufferAddress,
-                        format: wgpu::VertexFormat::Float3,
+                        format: wgpu::VertexFormat::Float32x3,
                         shader_location: 0,
                     },
                     // a_Color
-                    wgpu::VertexAttributeDescriptor {
+                    wgpu::VertexAttribute {
                         offset: offset_of!(Vertex, color) as wgpu::BufferAddress,
-                        format: wgpu::VertexFormat::Float4,
+                        format: wgpu::VertexFormat::Float32x4,
                         shader_location: 1,
                     },
                 ],
             }],
         },
-        sample_count: NUM_OUTPUT_SAMPLES,
-        sample_mask: !0,
-        alpha_to_coverage_enabled: false,
+        fragment: Some(wgpu::FragmentState {
+            module: &device
+                .create_shader_module(wgpu::include_spirv!("../../bin/shaders/color.frag.spv")),
+            entry_point: "main",
+            targets: &[Some(wgpu::ColorTargetState {
+                format: output_format,
+                blend: Some(wgpu::BlendState {
+                    color: wgpu::BlendComponent {
+                        src_factor: wgpu::BlendFactor::SrcAlpha,
+                        dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                        operation: wgpu::BlendOperation::Add,
+                    },
+                    alpha: wgpu::BlendComponent::REPLACE,
+                }),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+        }),
+        primitive: wgpu::PrimitiveState {
+            topology: primitive_topology,
+            ..Default::default()
+        },
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: DEPTH_TEXTURE_FORMAT,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::LessEqual,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
+        multisample: wgpu::MultisampleState {
+            count: NUM_OUTPUT_SAMPLES,
+            mask: !0,
+            alpha_to_coverage_enabled: false,
+        },
+        multiview: None,
     })
 }

@@ -27,12 +27,12 @@ impl<'a> SeamViewSceneBundle<'a> {
         let proj_matrix_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
             contents: cast_slice(Matrix4f::identity().as_slice()),
-            usage: wgpu::BufferUsage::UNIFORM,
+            usage: wgpu::BufferUsages::UNIFORM,
         });
         let view_matrix_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
             contents: cast_slice(Matrix4f::identity().as_slice()),
-            usage: wgpu::BufferUsage::UNIFORM,
+            usage: wgpu::BufferUsages::UNIFORM,
         });
         let transform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,

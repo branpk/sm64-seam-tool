@@ -35,12 +35,12 @@ impl<'a> GameViewSceneBundle<'a> {
         let proj_matrix_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
             contents: cast_slice(proj_matrix.as_slice()),
-            usage: wgpu::BufferUsage::UNIFORM,
+            usage: wgpu::BufferUsages::UNIFORM,
         });
         let view_matrix_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
             contents: cast_slice(view_matrix.as_slice()),
-            usage: wgpu::BufferUsage::UNIFORM,
+            usage: wgpu::BufferUsages::UNIFORM,
         });
         let transform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
@@ -65,7 +65,7 @@ impl<'a> GameViewSceneBundle<'a> {
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: None,
                 contents: cast_slice(&surface_vertices),
-                usage: wgpu::BufferUsage::VERTEX,
+                usage: wgpu::BufferUsages::VERTEX,
             }),
         );
         // let hidden_surface_vertex_buffer = (
@@ -73,7 +73,7 @@ impl<'a> GameViewSceneBundle<'a> {
         //     device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         //         label: None,
         //         contents: cast_slice(&hidden_surface_vertices),
-        //         usage: wgpu::BufferUsage::VERTEX,
+        //         usage: wgpu::BufferUsages::VERTEX,
         //     }),
         // );
 
@@ -84,7 +84,7 @@ impl<'a> GameViewSceneBundle<'a> {
         //     device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         //         label: None,
         //         contents: cast_slice(&wall_hitbox_vertices),
-        //         usage: wgpu::BufferUsage::VERTEX,
+        //         usage: wgpu::BufferUsages::VERTEX,
         //     }),
         // );
         // let wall_hitbox_outline_vertex_buffer = (
@@ -92,7 +92,7 @@ impl<'a> GameViewSceneBundle<'a> {
         //     device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         //         label: None,
         //         contents: cast_slice(&wall_hitbox_outline_vertices),
-        //         usage: wgpu::BufferUsage::VERTEX,
+        //         usage: wgpu::BufferUsages::VERTEX,
         //     }),
         // );
 
@@ -102,7 +102,7 @@ impl<'a> GameViewSceneBundle<'a> {
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: None,
                 contents: cast_slice(&seam_vertices),
-                usage: wgpu::BufferUsage::VERTEX,
+                usage: wgpu::BufferUsages::VERTEX,
             }),
         );
 
@@ -355,9 +355,10 @@ fn get_seam_vertices(scene: &GameViewScene) -> Vec<Vertex> {
             let num_sides = 10;
 
             let mut push_vertex = |endpoint: Point3f, angle: f32| {
-                let pos = endpoint + radius * (angle.cos() * perp_dir_1 + angle.sin() * perp_dir_2);
+                let pos: Point3f =
+                    endpoint + radius * (angle.cos() * perp_dir_1 + angle.sin() * perp_dir_2);
                 vertices.push(Vertex {
-                    pos: [pos.x, pos.y, pos.z],
+                    pos: [pos.coords[0], pos.coords[1], pos.coords[2]],
                     color,
                 });
             };

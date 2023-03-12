@@ -2,12 +2,14 @@
 name = "sm64-seam-tool"
 version = "0.1.1"
 edition = "2018"
+resolver = "2"
 
 [dependencies]
-wgpu = { git = "https://github.com/gfx-rs/wgpu-rs.git" }
+
+wgpu = { version = "0.15.1", features = ["spirv"] }
 winit = "0.22.1"
 imgui = "0.4.0"
-futures = "0.3.5"
+futures = "0.3.27"
 imgui-winit-support = "0.4.0"
 bytemuck = "1.4.0"
 read-process-memory = "0.1.2"

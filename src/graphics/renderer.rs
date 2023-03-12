@@ -20,20 +20,22 @@ impl Renderer {
                     // u_Proj
                     wgpu::BindGroupLayoutEntry {
                         binding: 0,
-                        visibility: wgpu::ShaderStage::VERTEX,
-                        ty: wgpu::BindingType::UniformBuffer {
-                            dynamic: false,
+                        visibility: wgpu::ShaderStages::VERTEX,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
                             min_binding_size: None,
+                            has_dynamic_offset: false,
                         },
                         count: None,
                     },
                     // u_View
                     wgpu::BindGroupLayoutEntry {
                         binding: 1,
-                        visibility: wgpu::ShaderStage::VERTEX,
-                        ty: wgpu::BindingType::UniformBuffer {
-                            dynamic: false,
+                        visibility: wgpu::ShaderStages::VERTEX,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
                             min_binding_size: None,
+                            has_dynamic_offset: false,
                         },
                         count: None,
                     },
@@ -126,8 +128,9 @@ impl Renderer {
 
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                    attachment: &multisample_texture_view,
+                label: None,
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &multisample_texture_view,
                     resolve_target: Some(&output_view),
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
@@ -138,9 +141,9 @@ impl Renderer {
                         }),
                         store: true,
                     },
-                }],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachmentDescriptor {
-                    attachment: &depth_texture_view,
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &depth_texture_view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
                         store: true,
@@ -172,13 +175,14 @@ fn create_multisample_texture(
         size: wgpu::Extent3d {
             width: output_size.0,
             height: output_size.1,
-            depth: 1,
+            depth_or_array_layers: 1,
         },
         mip_level_count: 1,
         sample_count: NUM_OUTPUT_SAMPLES,
         dimension: wgpu::TextureDimension::D2,
         format: output_format,
-        usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+        view_formats: &[],
     })
 }
 
@@ -188,12 +192,13 @@ fn create_depth_texture(device: &wgpu::Device, output_size: (u32, u32)) -> wgpu:
         size: wgpu::Extent3d {
             width: output_size.0,
             height: output_size.1,
-            depth: 1,
+            depth_or_array_layers: 1,
         },
         mip_level_count: 1,
         sample_count: NUM_OUTPUT_SAMPLES,
         dimension: wgpu::TextureDimension::D2,
         format: DEPTH_TEXTURE_FORMAT,
-        usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+        view_formats: &[],
     })
 }

@@ -110,7 +110,7 @@ pub fn upload_vertex_buffer<T: Pod>(device: &wgpu::Device, data: &[T]) -> (usize
         device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
             contents: cast_slice(data),
-            usage: wgpu::BufferUsage::VERTEX,
+            usage: wgpu::BufferUsages::VERTEX,
         }),
     )
 }
