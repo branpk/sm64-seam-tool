@@ -37,8 +37,18 @@ fn main() {
         });
 
         let event_loop = EventLoop::new();
+        let max_screen_dim = event_loop
+            .available_monitors()
+            .flat_map(|m| [m.size().width, m.size().height])
+            .max()
+            .unwrap_or_default();
+
         let window = WindowBuilder::new()
             .with_title("Don't let your seams be seams")
+            .with_max_inner_size(winit::dpi::PhysicalSize::new(
+                max_screen_dim,
+                max_screen_dim,
+            ))
             .build(&event_loop)
             .unwrap();
 
@@ -56,21 +66,25 @@ fn main() {
                 &wgpu::DeviceDescriptor {
                     label: None,
                     features: wgpu::Features::empty(),
-                    limits: wgpu::Limits::default(),
+                    limits: wgpu::Limits {
+                        max_texture_dimension_2d: max_screen_dim,
+                        ..wgpu::Limits::downlevel_defaults()
+                    },
                 },
                 None,
             )
             .await
             .unwrap();
 
-        let output_format = wgpu::TextureFormat::Bgra8Unorm;
+        let surface_capabilities = surface.get_capabilities(&adapter);
+        let output_format = surface_capabilities.formats[0];
         let mut surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: output_format,
             width: window.inner_size().width,
             height: window.inner_size().height,
             present_mode: wgpu::PresentMode::AutoVsync,
-            alpha_mode: wgpu::CompositeAlphaMode::Auto,
+            alpha_mode: surface_capabilities.alpha_modes[0],
             view_formats: vec![],
         };
         surface.configure(&device, &surface_config);
