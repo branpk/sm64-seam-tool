@@ -22,7 +22,7 @@ use crate::{
     },
 };
 use fs::File;
-use imgui::{im_str, Condition, MouseButton, Ui};
+use imgui::{Condition, MouseButton, Ui};
 use itertools::Itertools;
 use nalgebra::{Point3, Vector3};
 use sysinfo::{AsU32, ProcessExt, SystemExt};
@@ -31,7 +31,7 @@ pub fn render_app(ui: &Ui, app: &mut App) -> Vec<Scene> {
     let style_token = ui.push_style_color(imgui::StyleColor::WindowBg, [0.0, 0.0, 0.0, 0.0]);
 
     let mut scenes = Vec::new();
-    imgui::Window::new(im_str!("##app"))
+    imgui::Window::new(ui, "##app")
         .position([0.0, 0.0], Condition::Always)
         .size(ui.io().display_size, Condition::Always)
         .save_settings(false)
@@ -40,7 +40,7 @@ pub fn render_app(ui: &Ui, app: &mut App) -> Vec<Scene> {
         .scroll_bar(false)
         .scrollable(false)
         .bring_to_front_on_focus(false)
-        .build(&ui, || {
+        .build(|| {
             scenes = match app {
                 App::ConnectionMenu(menu) => {
                     if let Some(model) = render_connection_menu(ui, menu) {
@@ -52,7 +52,7 @@ pub fn render_app(ui: &Ui, app: &mut App) -> Vec<Scene> {
             }
         });
 
-    style_token.pop(ui);
+    style_token.pop();
     scenes
 }
 
@@ -84,26 +84,23 @@ fn render_connection_menu(ui: &Ui, menu: &mut ConnectionMenu) -> Option<Connecte
 
     ui.spacing();
     ui.set_next_item_width(300.0);
-    imgui::ComboBox::new(&im_str!("##process")).build_simple(
-        ui,
-        &mut process_index,
-        &processes,
-        &|process| im_str!("{:8}: {}", process.pid(), process.name()).into(),
-    );
+    ui.combo("##process", &mut process_index, &processes, |process| {
+        format!("{:8}: {}", process.pid(), process.name()).into()
+    });
     let selected_process = processes.get(process_index).cloned();
     let selected_pid = selected_process.map(|process| process.pid().as_u32());
     let changed_pid = selected_pid != menu.selected_pid;
     menu.selected_pid = selected_pid;
 
     ui.spacing();
-    ui.text(im_str!("Base address: "));
-    ui.same_line(110.0);
+    ui.text("Base address: ");
+    ui.same_line_with_pos(110.0);
     ui.set_next_item_width(190.0);
     if ui
-        .input_text(im_str!("##base-addr"), &mut menu.base_addr_buffer)
+        .input_text("##base-addr", &mut menu.base_addr_buffer)
         .build()
     {
-        menu.selected_base_addr = parse_int::parse(menu.base_addr_buffer.to_str()).ok();
+        menu.selected_base_addr = parse_int::parse(menu.base_addr_buffer.as_str()).ok();
     }
     if changed_pid {
         if let Some(selected_process) = selected_process {
@@ -113,27 +110,27 @@ fn render_connection_menu(ui: &Ui, menu: &mut ConnectionMenu) -> Option<Connecte
                 .get(canonicalize_process_name(selected_process.name()).as_str())
             {
                 menu.selected_base_addr = Some(*base_addr);
-                menu.base_addr_buffer = im_str!("{:#X}", *base_addr);
+                menu.base_addr_buffer = format!("{:#X}", *base_addr);
                 menu.base_addr_buffer.reserve(32);
             }
         }
     }
 
     ui.spacing();
-    ui.text(im_str!("Game version: "));
-    ui.same_line(110.0);
+    ui.text("Game version: ");
+    ui.same_line_with_pos(110.0);
     ui.set_next_item_width(100.0);
-    imgui::ComboBox::new(im_str!("")).build_simple(
-        ui,
+    ui.combo(
+        "##versions",
         &mut menu.selected_version_index,
         &menu.config.game_versions,
-        &|game_version| im_str!("{}", game_version.name).into(),
+        |game_version| format!("{}", game_version.name).into(),
     );
 
     ui.spacing();
     if let Some(pid) = menu.selected_pid {
         if let Some(base_addr) = menu.selected_base_addr {
-            if ui.button(im_str!("Connect"), [0.0, 0.0]) {
+            if ui.button("Connect") {
                 return Some(ConnectedView::new(
                     pid as u32,
                     base_addr,
@@ -158,7 +155,7 @@ fn render_connected_view(ui: &Ui, view: &mut ConnectedView) -> Vec<Scene> {
 
     let mut scenes = Vec::new();
 
-    imgui::ChildWindow::new("game-view")
+    imgui::ChildWindow::new(ui, "game-view")
         .size([
             0.0,
             if view.seam_view.is_some() {
@@ -167,12 +164,12 @@ fn render_connected_view(ui: &Ui, view: &mut ConnectedView) -> Vec<Scene> {
                 0.0
             },
         ])
-        .build(ui, || {
+        .build(|| {
             scenes.push(Scene::GameView(render_game_view(ui, view, &state)));
         });
 
     if view.seam_view.is_some() {
-        imgui::ChildWindow::new("seam-info").build(ui, || {
+        imgui::ChildWindow::new(ui, "seam-info").build(|| {
             scenes.push(Scene::SeamView(render_seam_view(ui, view)));
         });
     }
@@ -213,13 +210,13 @@ fn render_game_view(ui: &Ui, view: &mut ConnectedView, state: &GameState) -> Gam
         }
     }
 
-    ui.text(im_str!("{}", view.fps_string));
-    ui.text(im_str!(
+    ui.text(format!("{}", view.fps_string));
+    ui.text(format!(
         "remaining: {}",
         view.seam_processor.remaining_seams()
     ));
 
-    ui.checkbox(im_str!("sync"), &mut view.sync_to_game);
+    ui.checkbox("sync", &mut view.sync_to_game);
 
     let all_filters = PointFilter::all();
     let mut filter_index = all_filters
@@ -227,12 +224,9 @@ fn render_game_view(ui: &Ui, view: &mut ConnectedView, state: &GameState) -> Gam
         .position(|filter| view.seam_processor.filter() == *filter)
         .unwrap();
     ui.set_next_item_width(100.0);
-    if imgui::ComboBox::new(im_str!("##filter")).build_simple(
-        ui,
-        &mut filter_index,
-        &all_filters,
-        &|filter| im_str!("{}", filter).into(),
-    ) {
+    if ui.combo("##filter", &mut filter_index, &all_filters, |filter| {
+        format!("{}", filter).into()
+    }) {
         view.seam_processor.set_filter(all_filters[filter_index]);
     }
 
@@ -323,16 +317,16 @@ fn render_seam_view(ui: &Ui, view: &mut ConnectedView) -> SeamViewScene {
         horizontal_grid_lines,
     };
 
-    let close_seam_view = ui.button(im_str!("Close"), [0.0, 0.0]);
+    let close_seam_view = ui.button("Close");
 
-    ui.same_line(50.0);
+    ui.same_line_with_pos(50.0);
     if let Some(progress) = view.export_progress.lock().unwrap().as_ref() {
-        ui.text(im_str!(
+        ui.text(format!(
             "Exporting ({:.1}%)",
             progress.complete as f32 / progress.total as f32 * 100.0,
         ));
     } else {
-        if ui.button(im_str!("Export"), [0.0, 0.0]) {
+        if ui.button("Export") {
             view.export_form = Some(SeamExportForm::new(
                 seam.clone(),
                 view.seam_processor.filter(),
@@ -345,16 +339,16 @@ fn render_seam_view(ui: &Ui, view: &mut ConnectedView) -> SeamViewScene {
     let rounded_mouse = point_f64_to_f32(world_mouse_pos);
     match seam.edge1.projection_axis {
         ProjectionAxis::X => {
-            ui.text(im_str!("(_, {}, {})", rounded_mouse.y, rounded_mouse.z));
-            ui.text(im_str!(
+            ui.text(format!("(_, {}, {})", rounded_mouse.y, rounded_mouse.z));
+            ui.text(format!(
                 "(_, {:#08X}, {:#08X})",
                 rounded_mouse.y.to_bits(),
                 rounded_mouse.z.to_bits(),
             ));
         }
         ProjectionAxis::Z => {
-            ui.text(im_str!("({}, {}, _)", rounded_mouse.x, rounded_mouse.y));
-            ui.text(im_str!(
+            ui.text(format!("({}, {}, _)", rounded_mouse.x, rounded_mouse.y));
+            ui.text(format!(
                 "({:#08X}, {:#08X}, _)",
                 rounded_mouse.x.to_bits(),
                 rounded_mouse.y.to_bits(),
@@ -404,10 +398,10 @@ fn render_export_form(ui: &Ui, view: &mut ConnectedView) {
 
     let mut opened = true;
     let mut begun = false;
-    imgui::Window::new(im_str!("Export seam data"))
+    imgui::Window::new(ui, "Export seam data")
         .size([500.0, 300.0], Condition::Appearing)
         .opened(&mut opened)
-        .build(ui, || {
+        .build(|| {
             let show_point =
                 |projection_axis: ProjectionAxis, point: ProjectedPoint<i16>| match projection_axis
                 {
@@ -429,20 +423,20 @@ fn render_export_form(ui: &Ui, view: &mut ConnectedView) {
                 )
             };
 
-            ui.text(im_str!("edge 1: {}", show_edge(form.seam.edge1)));
-            ui.text(im_str!("edge 2: {}", show_edge(form.seam.edge2)));
+            ui.text(format!("edge 1: {}", show_edge(form.seam.edge1)));
+            ui.text(format!("edge 2: {}", show_edge(form.seam.edge2)));
 
             ui.separator();
 
             ui.spacing();
             ui.text("Filename: ");
-            ui.same_line(80.0);
+            ui.same_line_with_pos(80.0);
             ui.set_next_item_width(200.0);
             if ui
-                .input_text(im_str!("##filename"), &mut form.filename_buffer)
+                .input_text("##filename", &mut form.filename_buffer)
                 .build()
             {
-                let filename = form.filename_buffer.to_str().trim();
+                let filename = form.filename_buffer.as_str().trim();
                 if filename.is_empty() {
                     form.filename = None;
                 } else {
@@ -456,28 +450,22 @@ fn render_export_form(ui: &Ui, view: &mut ConnectedView) {
                 ProjectionAxis::Z => "x",
             };
 
-            ui.text(im_str!("min {}: ", coord_axis_str));
-            ui.same_line(60.0);
+            ui.text(format!("min {}: ", coord_axis_str));
+            ui.same_line_with_pos(60.0);
             ui.set_next_item_width(100.0);
-            if ui
-                .input_text(im_str!("##min-w"), &mut form.min_w_buffer)
-                .build()
-            {
-                form.min_w = form.min_w_buffer.to_str().parse::<f32>().ok();
+            if ui.input_text("##min-w", &mut form.min_w_buffer).build() {
+                form.min_w = form.min_w_buffer.as_str().parse::<f32>().ok();
             }
 
-            ui.text(im_str!("max {}: ", coord_axis_str));
-            ui.same_line(60.0);
+            ui.text(format!("max {}: ", coord_axis_str));
+            ui.same_line_with_pos(60.0);
             ui.set_next_item_width(100.0);
-            if ui
-                .input_text(im_str!("##max-w"), &mut form.max_w_buffer)
-                .build()
-            {
-                form.max_w = form.max_w_buffer.to_str().parse::<f32>().ok();
+            if ui.input_text("##max-w", &mut form.max_w_buffer).build() {
+                form.max_w = form.max_w_buffer.as_str().parse::<f32>().ok();
             }
 
             ui.spacing();
-            ui.checkbox(im_str!("Include [-1, 1]"), &mut form.include_small_w);
+            ui.checkbox("Include [-1, 1]", &mut form.include_small_w);
 
             ui.spacing();
             let all_filters = PointFilter::all();
@@ -486,11 +474,11 @@ fn render_export_form(ui: &Ui, view: &mut ConnectedView) {
                 .position(|filter| form.point_filter == *filter)
                 .unwrap();
             ui.set_next_item_width(150.0);
-            if imgui::ComboBox::new(im_str!("##point-filter")).build_simple(
-                ui,
+            if ui.combo(
+                "##point-filter",
                 &mut filter_index,
                 &all_filters,
-                &|filter| im_str!("{}", filter).into(),
+                |filter| format!("{}", filter).into(),
             ) {
                 form.point_filter = all_filters[filter_index];
             }
@@ -502,11 +490,11 @@ fn render_export_form(ui: &Ui, view: &mut ConnectedView) {
                 .position(|filter| form.status_filter == *filter)
                 .unwrap();
             ui.set_next_item_width(150.0);
-            if imgui::ComboBox::new(im_str!("##status-filter")).build_simple(
-                ui,
+            if ui.combo(
+                "##status-filter",
                 &mut filter_index,
                 &all_filters,
-                &|filter| im_str!("{}", filter).into(),
+                |filter| format!("{}", filter).into(),
             ) {
                 form.status_filter = all_filters[filter_index];
             }
@@ -515,7 +503,7 @@ fn render_export_form(ui: &Ui, view: &mut ConnectedView) {
                 (form.min_w, form.max_w, form.filename.as_ref())
             {
                 (0..3).for_each(|_| ui.spacing());
-                if ui.button(im_str!("Export"), [0.0, 0.0]) {
+                if ui.button("Export") {
                     begun = true;
 
                     let mut writer = BufWriter::new(File::create(filename).unwrap());
@@ -549,5 +537,5 @@ fn render_export_form(ui: &Ui, view: &mut ConnectedView) {
         view.export_form = None;
     }
 
-    style_token.pop(ui);
+    style_token.pop();
 }

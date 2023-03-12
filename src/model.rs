@@ -7,7 +7,6 @@ use crate::{
     seam::{PointFilter, Seam},
     seam_processor::SeamProcessor,
 };
-use imgui::{im_str, ImString};
 use nalgebra::Point3;
 use std::{fs, sync::Arc, sync::Mutex};
 use sysinfo::{System, SystemExt};
@@ -29,7 +28,7 @@ pub struct ConnectionMenu {
     pub config: Config,
     pub system: System,
     pub selected_pid: Option<u32>,
-    pub base_addr_buffer: ImString,
+    pub base_addr_buffer: String,
     pub selected_base_addr: Option<usize>,
     pub selected_version_index: usize,
 }
@@ -42,7 +41,7 @@ impl ConnectionMenu {
             config,
             system: System::new(),
             selected_pid: None,
-            base_addr_buffer: ImString::with_capacity(32),
+            base_addr_buffer: String::with_capacity(32),
             selected_base_addr: None,
             selected_version_index: 0,
         }
@@ -104,24 +103,24 @@ impl SeamViewState {
 pub struct SeamExportForm {
     pub seam: Seam,
     pub filename: Option<String>,
-    pub filename_buffer: ImString,
+    pub filename_buffer: String,
     pub point_filter: PointFilter,
     pub status_filter: PointStatusFilter,
     pub include_small_w: bool,
     pub min_w: Option<f32>,
     pub max_w: Option<f32>,
-    pub min_w_buffer: ImString,
-    pub max_w_buffer: ImString,
+    pub min_w_buffer: String,
+    pub max_w_buffer: String,
 }
 
 impl SeamExportForm {
     pub fn new(seam: Seam, filter: PointFilter) -> Self {
         let w_range = seam.w_range();
-        let mut filename_buffer = ImString::new("seam.csv");
+        let mut filename_buffer = "seam.csv".to_string();
         filename_buffer.reserve(32);
-        let mut min_w_buffer = im_str!("{}", w_range.start);
+        let mut min_w_buffer = format!("{}", w_range.start);
         min_w_buffer.reserve(32);
-        let mut max_w_buffer = im_str!("{}", prev_f32(w_range.end));
+        let mut max_w_buffer = format!("{}", prev_f32(w_range.end));
         max_w_buffer.reserve(32);
 
         Self {

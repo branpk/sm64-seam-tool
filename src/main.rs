@@ -69,7 +69,7 @@ fn main() {
             format: output_format,
             width: window.inner_size().width,
             height: window.inner_size().height,
-            present_mode: wgpu::PresentMode::Mailbox,
+            present_mode: wgpu::PresentMode::AutoVsync,
             alpha_mode: wgpu::CompositeAlphaMode::Auto,
             view_formats: vec![],
         };
@@ -123,7 +123,8 @@ fn main() {
                 Event::MainEventsCleared => window.request_redraw(),
                 Event::RedrawRequested(_) => {
                     if surface_config.width > 0 && surface_config.height > 0 {
-                        last_frame = imgui.io_mut().update_delta_time(last_frame);
+                        imgui.io_mut().update_delta_time(last_frame.elapsed());
+                        last_frame = Instant::now();
 
                         platform
                             .prepare_frame(imgui.io_mut(), &window)
@@ -132,7 +133,7 @@ fn main() {
                         let ui = imgui.frame();
                         let scenes = render_app(&ui, &mut app);
                         platform.prepare_render(&ui, &window);
-                        let draw_data = ui.render();
+                        let draw_data = imgui.render();
 
                         let surface_texture = &surface.get_current_texture().unwrap();
                         let output_view = surface_texture
