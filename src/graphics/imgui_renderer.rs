@@ -80,6 +80,7 @@ impl ImguiRenderer {
                 module: &device
                     .create_shader_module(wgpu::include_spirv!("../../bin/shaders/imgui.vert.spv")),
                 entry_point: "main",
+                compilation_options: Default::default(),
                 buffers: &[wgpu::VertexBufferLayout {
                     array_stride: size_of::<DrawVert>() as wgpu::BufferAddress,
                     step_mode: wgpu::VertexStepMode::Vertex,
@@ -109,6 +110,7 @@ impl ImguiRenderer {
                 module: &device
                     .create_shader_module(wgpu::include_spirv!("../../bin/shaders/imgui.frag.spv")),
                 entry_point: "main",
+                compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: output_format,
                     blend: Some(wgpu::BlendState {
@@ -133,6 +135,7 @@ impl ImguiRenderer {
                 alpha_to_coverage_enabled: false,
             },
             multiview: None,
+            cache: None,
         });
 
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
@@ -146,11 +149,11 @@ impl ImguiRenderer {
             lod_min_clamp: 0.0,
             lod_max_clamp: f32::MAX,
             compare: None,
-            anisotropy_clamp: None,
+            anisotropy_clamp: 1,
             border_color: None,
         });
 
-        let mut fonts = imgui.fonts();
+        let fonts = imgui.fonts();
         let font_texture = fonts.build_rgba32_texture();
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: None,
@@ -280,10 +283,12 @@ impl ImguiRenderer {
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Load,
-                        store: true,
+                        store: wgpu::StoreOp::Store,
                     },
                 })],
                 depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
             });
 
             render_pass.set_pipeline(&self.pipeline);
@@ -297,25 +302,22 @@ impl ImguiRenderer {
                 render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
 
                 for command in command_list.commands() {
-                    match command {
-                        DrawCmd::Elements { count, cmd_params } => {
-                            let clip_rect = cmd_params.clip_rect;
-                            render_pass.set_scissor_rect(
-                                clip_rect[0] as u32,
-                                clip_rect[1] as u32,
-                                (clip_rect[2] - clip_rect[0]) as u32,
-                                (clip_rect[3] - clip_rect[1]) as u32,
-                            );
+                    if let DrawCmd::Elements { count, cmd_params } = command {
+                         let clip_rect = cmd_params.clip_rect;
+                         render_pass.set_scissor_rect(
+                             clip_rect[0] as u32,
+                         clip_rect[1] as u32,
+                            (clip_rect[2] - clip_rect[0]) as u32,
+                         (clip_rect[3] - clip_rect[1]) as u32,
+                      );
 
-                            render_pass.draw_indexed(
-                                cmd_params.idx_offset as u32
-                                    ..(cmd_params.idx_offset + count) as u32,
-                                0,
-                                0..1,
-                            );
-                        }
-                        _ => {}
-                    }
+                         render_pass.draw_indexed(
+                            cmd_params.idx_offset as u32
+                                ..(cmd_params.idx_offset + count) as u32,
+                             0,
+                             0..1,
+                        );
+                 }
                 }
             }
         }

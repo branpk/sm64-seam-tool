@@ -1,9 +1,9 @@
 #![allow(unused)]
 
 use super::{
+    Camera, GameViewScene, SurfaceType, Vertex,
     pipelines::Pipelines,
     util::{birds_eye_transforms, rotate_transforms, seam_segment_color},
-    Camera, GameViewScene, SurfaceType, Vertex,
 };
 use crate::geo::{Point3f, Vector3f};
 use bytemuck::cast_slice;
@@ -44,7 +44,7 @@ impl<'a> GameViewSceneBundle<'a> {
         });
         let transform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
-            layout: &transform_bind_group_layout,
+            layout: transform_bind_group_layout,
             entries: &[
                 // u_Proj
                 wgpu::BindGroupEntry {

@@ -1,6 +1,6 @@
 use crate::{
     edge::ProjectedPoint,
-    float_range::{next_f32, RangeF32},
+    float_range::{RangeF32, next_f32},
     game_state::{GameState, Surface},
     seam::{PointFilter, PointStatus, RangeStatus, Seam},
     spatial_partition::SpatialPartition,
@@ -10,8 +10,8 @@ use std::{
     collections::{HashMap, VecDeque},
     iter,
     sync::{
-        mpsc::{channel, Receiver, Sender},
         Arc, Mutex,
+        mpsc::{Receiver, Sender, channel},
     },
     thread,
     time::{Duration, Instant},
@@ -196,7 +196,7 @@ impl SeamProcessor {
                 return;
             }
 
-            spatial_partition.insert(wall.clone());
+            spatial_partition.insert(*wall);
         }
 
         for (wall1, wall2) in spatial_partition.pairs() {
@@ -246,12 +246,10 @@ impl SeamProcessor {
                         self.focused_seam = Some((request, progress));
                     }
                 }
+            } else if let SeamOutput::Segments(progress) = progress {
+                self.progress.insert(request.seam, progress);
             } else {
-                if let SeamOutput::Segments(progress) = progress {
-                    self.progress.insert(request.seam, progress);
-                } else {
-                    panic!("invalid thread output");
-                }
+                panic!("invalid thread output");
             }
         }
     }
@@ -369,7 +367,7 @@ fn processor_thread(
                     })
                     .collect::<Vec<_>>()
                     .into_iter()
-                    .flat_map(|iterator| iterator)
+                    .flatten()
                     .collect();
 
                 let _ = output.send((request.clone(), SeamOutput::Points(SeamPoints { points })));

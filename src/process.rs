@@ -1,8 +1,7 @@
-use bytemuck::{from_bytes, Pod};
-use read_process_memory::{copy_address, ProcessHandle, TryIntoProcessHandle};
+use bytemuck::{Pod, from_bytes};
+use read_process_memory::{ProcessHandle, copy_address};
 use std::mem::size_of;
 
-#[derive(Debug)]
 pub struct Process {
     handle: ProcessHandle,
     base_address: usize,
@@ -11,7 +10,7 @@ pub struct Process {
 impl Process {
     pub fn attach(pid: u32, base_address: usize) -> Self {
         Self {
-            handle: pid.try_into_process_handle().unwrap(),
+            handle: pid.try_into().unwrap(),
             base_address,
         }
     }

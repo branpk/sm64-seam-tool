@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 use ui::render_app;
 use winit::{
     event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::{EventLoop},
     window::WindowBuilder,
 };
 
@@ -36,7 +36,7 @@ fn main() {
             ..Default::default()
         });
 
-        let event_loop = EventLoop::new();
+        let event_loop = EventLoop::new().unwrap();
         let max_screen_dim = event_loop
             .available_monitors()
             .flat_map(|m| [m.size().width, m.size().height])
@@ -65,11 +65,12 @@ fn main() {
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: None,
-                    features: wgpu::Features::empty(),
-                    limits: wgpu::Limits {
+                    required_features: wgpu::Features::empty(),
+                    required_limits: wgpu::Limits {
                         max_texture_dimension_2d: max_screen_dim,
                         ..wgpu::Limits::downlevel_defaults()
                     },
+                    memory_hints: Default::default(),
                 },
                 None,
             )
@@ -84,6 +85,7 @@ fn main() {
             width: window.inner_size().width,
             height: window.inner_size().height,
             present_mode: wgpu::PresentMode::AutoVsync,
+            desired_maximum_frame_latency: 1,
             alpha_mode: surface_capabilities.alpha_modes[0],
             view_formats: vec![],
         };
@@ -107,7 +109,7 @@ fn main() {
         let mut frames_since_fps = 0;
 
         let mut last_frame = Instant::now();
-        event_loop.run(move |event, _, control_flow| {
+        event_loop.run( |event, elwt| {
             let elapsed = last_fps_time.elapsed();
             if elapsed > Duration::from_secs(1) {
                 let fps = frames_since_fps as f64 / elapsed.as_secs_f64();
@@ -124,7 +126,7 @@ fn main() {
             platform.handle_event(imgui.io_mut(), &window, &event);
             match event {
                 Event::WindowEvent { event, .. } => match event {
-                    WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                    WindowEvent::CloseRequested => elwt.exit(),
                     WindowEvent::Resized(size) => {
                         surface_config.width = size.width;
                         surface_config.height = size.height;
@@ -132,52 +134,54 @@ fn main() {
                             surface.configure(&device, &surface_config);
                         }
                     }
+                    WindowEvent::RedrawRequested => {
+                        if surface_config.width > 0 && surface_config.height > 0 {
+                            imgui.io_mut().update_delta_time(last_frame.elapsed());
+                            last_frame = Instant::now();
+
+                            platform
+                                .prepare_frame(imgui.io_mut(), &window)
+                                .expect("Failed to prepare frame");
+
+                            let ui = imgui.frame();
+                            let scenes = render_app(ui, &mut app);
+                            platform.prepare_render(ui, &window);
+                            let draw_data = imgui.render();
+
+                            let surface_texture = surface.get_current_texture().unwrap();
+                            let output_view = surface_texture
+                                .texture
+                                .create_view(&wgpu::TextureViewDescriptor::default());
+
+                            renderer.render(
+                                &device,
+                                &queue,
+                                &output_view,
+                                (surface_config.width, surface_config.height),
+                                surface_config.format,
+                                &scenes,
+                            );
+
+                            imgui_renderer.render(
+                                &device,
+                                &queue,
+                                &output_view,
+                                (surface_config.width, surface_config.height),
+                                draw_data,
+                            );
+
+                            surface_texture.present();
+
+                            frames_since_fps += 1;
+                        }
+                    }
                     _ => {}
                 },
-                Event::MainEventsCleared => window.request_redraw(),
-                Event::RedrawRequested(_) => {
-                    if surface_config.width > 0 && surface_config.height > 0 {
-                        imgui.io_mut().update_delta_time(last_frame.elapsed());
-                        last_frame = Instant::now();
-
-                        platform
-                            .prepare_frame(imgui.io_mut(), &window)
-                            .expect("Failed to prepare frame");
-
-                        let ui = imgui.frame();
-                        let scenes = render_app(&ui, &mut app);
-                        platform.prepare_render(&ui, &window);
-                        let draw_data = imgui.render();
-
-                        let surface_texture = surface.get_current_texture().unwrap();
-                        let output_view = surface_texture
-                            .texture
-                            .create_view(&wgpu::TextureViewDescriptor::default());
-
-                        renderer.render(
-                            &device,
-                            &queue,
-                            &output_view,
-                            (surface_config.width, surface_config.height),
-                            surface_config.format,
-                            &scenes,
-                        );
-
-                        imgui_renderer.render(
-                            &device,
-                            &queue,
-                            &output_view,
-                            (surface_config.width, surface_config.height),
-                            draw_data,
-                        );
-
-                        surface_texture.present();
-
-                        frames_since_fps += 1;
-                    }
+                Event::AboutToWait => {
+                    window.request_redraw();
                 }
                 _ => {}
             }
-        });
+        }).expect("TODO: panic message");
     })
 }

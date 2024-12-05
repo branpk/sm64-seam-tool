@@ -1,4 +1,4 @@
-use crate::float_range::{flush_f32_to_zero, RangeF32};
+use crate::float_range::{RangeF32, flush_f32_to_zero};
 use std::fmt::{self, Display};
 
 /// The axis along which a wall projects.

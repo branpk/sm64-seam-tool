@@ -1,10 +1,10 @@
 use super::{BirdsEyeCamera, RotateCamera, SeamViewCamera, Viewport};
 use crate::{
-    geo::{direction_to_pitch_yaw, Matrix4f, Point3f, Vector3f, Vector4f},
+    geo::{Matrix4f, Point3f, Vector3f, Vector4f, direction_to_pitch_yaw},
     seam::{PointStatus, RangeStatus},
 };
-use bytemuck::{cast_slice, Pod};
-use nalgebra::{distance, Point3, Vector3};
+use bytemuck::{Pod, cast_slice};
+use nalgebra::{Point3, Vector3, distance};
 use std::f32::consts::PI;
 use wgpu::util::DeviceExt;
 

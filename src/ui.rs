@@ -4,10 +4,10 @@ use crate::{
     edge::{Edge, Orientation, ProjectedPoint, ProjectionAxis},
     float_range::RangeF32,
     game_state::GameState,
-    geo::{point_f64_to_f32, Point3f},
+    geo::{Point3f, point_f64_to_f32},
     graphics::{
-        seam_view_screen_to_world, Camera, GameViewScene, Scene, SeamViewCamera, SeamViewScene,
-        Viewport,
+        Camera, GameViewScene, Scene, SeamViewCamera, SeamViewScene, Viewport,
+        seam_view_screen_to_world,
     },
     model::{App, ConnectedView, ConnectionMenu, SeamExportForm, SeamViewState},
     seam::PointFilter,
@@ -25,13 +25,13 @@ use fs::File;
 use imgui::{Condition, MouseButton, Ui};
 use itertools::Itertools;
 use nalgebra::{Point3, Vector3};
-use sysinfo::{AsU32, ProcessExt, SystemExt};
+use sysinfo::ProcessesToUpdate;
 
 pub fn render_app(ui: &Ui, app: &mut App) -> Vec<Scene> {
     let style_token = ui.push_style_color(imgui::StyleColor::WindowBg, [0.0, 0.0, 0.0, 0.0]);
 
     let mut scenes = Vec::new();
-    imgui::Window::new(ui, "##app")
+    ui.window("##app")
         .position([0.0, 0.0], Condition::Always)
         .size(ui.io().display_size, Condition::Always)
         .save_settings(false)
@@ -57,12 +57,12 @@ pub fn render_app(ui: &Ui, app: &mut App) -> Vec<Scene> {
 }
 
 fn render_connection_menu(ui: &Ui, menu: &mut ConnectionMenu) -> Option<ConnectedView> {
-    menu.system.refresh_processes();
+    menu.system.refresh_processes(ProcessesToUpdate::All, false);
     let processes: Vec<_> = menu
         .system
-        .get_processes()
+        .processes()
         .values()
-        .sorted_by_key(|process| process.name().to_lowercase())
+        .sorted_by_key(|process| process.name().to_ascii_lowercase())
         .collect();
 
     let mut process_index = menu
@@ -74,7 +74,7 @@ fn render_connection_menu(ui: &Ui, menu: &mut ConnectionMenu) -> Option<Connecte
         })
         .unwrap_or_else(|| {
             let known_process = processes.iter().position(|process| {
-                let name = canonicalize_process_name(process.name());
+                let name = canonicalize_process_name(process.name().to_str().expect("utf-8"));
                 menu.config.base_addresses.contains_key(name.as_str())
             });
             known_process.unwrap_or(0)
@@ -85,7 +85,12 @@ fn render_connection_menu(ui: &Ui, menu: &mut ConnectionMenu) -> Option<Connecte
     ui.spacing();
     ui.set_next_item_width(300.0);
     ui.combo("##process", &mut process_index, &processes, |process| {
-        format!("{:8}: {}", process.pid(), process.name()).into()
+        format!(
+            "{:8}: {}",
+            process.pid(),
+            process.name().to_str().expect("utf-8")
+        )
+        .into()
     });
     let selected_process = processes.get(process_index).cloned();
     let selected_pid = selected_process.map(|process| process.pid().as_u32());
@@ -107,7 +112,7 @@ fn render_connection_menu(ui: &Ui, menu: &mut ConnectionMenu) -> Option<Connecte
             if let Some(base_addr) = menu
                 .config
                 .base_addresses
-                .get(canonicalize_process_name(selected_process.name()).as_str())
+                .get(canonicalize_process_name(selected_process.name().to_str()?).as_str())
             {
                 menu.selected_base_addr = Some(*base_addr);
                 menu.base_addr_buffer = format!("{:#X}", *base_addr);
@@ -124,7 +129,7 @@ fn render_connection_menu(ui: &Ui, menu: &mut ConnectionMenu) -> Option<Connecte
         "##versions",
         &mut menu.selected_version_index,
         &menu.config.game_versions,
-        |game_version| format!("{}", game_version.name).into(),
+        |game_version| game_version.name.to_string().into(),
     );
 
     ui.spacing();
@@ -132,7 +137,7 @@ fn render_connection_menu(ui: &Ui, menu: &mut ConnectionMenu) -> Option<Connecte
         if let Some(base_addr) = menu.selected_base_addr {
             if ui.button("Connect") {
                 return Some(ConnectedView::new(
-                    pid as u32,
+                    pid,
                     base_addr,
                     menu.config.game_versions[menu.selected_version_index]
                         .globals
@@ -154,8 +159,7 @@ fn render_connected_view(ui: &Ui, view: &mut ConnectedView) -> Vec<Scene> {
     view.seam_processor.update(&state);
 
     let mut scenes = Vec::new();
-
-    imgui::ChildWindow::new(ui, "game-view")
+    ui.child_window("game-view")
         .size([
             0.0,
             if view.seam_view.is_some() {
@@ -169,7 +173,7 @@ fn render_connected_view(ui: &Ui, view: &mut ConnectedView) -> Vec<Scene> {
         });
 
     if view.seam_view.is_some() {
-        imgui::ChildWindow::new(ui, "seam-info").build(|| {
+        ui.child_window("seam-info").build(|| {
             scenes.push(Scene::SeamView(render_seam_view(ui, view)));
         });
     }
@@ -190,14 +194,14 @@ fn render_game_view(ui: &Ui, view: &mut ConnectedView, state: &GameState) -> Gam
     };
     let scene = build_game_view_scene(
         viewport,
-        &state,
+        state,
         &view.seam_processor,
         view.hovered_seam.clone(),
     );
     if let Camera::Rotate(camera) = &scene.camera {
         let mouse_ray = get_mouse_ray(ui.io().mouse_pos, ui.window_pos(), ui.window_size(), camera);
         view.hovered_seam = mouse_ray.and_then(|mouse_ray| {
-            find_hovered_seam(&state, view.seam_processor.active_seams(), mouse_ray)
+            find_hovered_seam(state, view.seam_processor.active_seams(), mouse_ray)
         });
     }
 
@@ -210,7 +214,7 @@ fn render_game_view(ui: &Ui, view: &mut ConnectedView, state: &GameState) -> Gam
         }
     }
 
-    ui.text(format!("{}", view.fps_string));
+    ui.text(view.fps_string.to_string());
     ui.text(format!(
         "remaining: {}",
         view.seam_processor.remaining_seams()
@@ -325,13 +329,11 @@ fn render_seam_view(ui: &Ui, view: &mut ConnectedView) -> SeamViewScene {
             "Exporting ({:.1}%)",
             progress.complete as f32 / progress.total as f32 * 100.0,
         ));
-    } else {
-        if ui.button("Export") {
-            view.export_form = Some(SeamExportForm::new(
-                seam.clone(),
-                view.seam_processor.filter(),
-            ));
-        }
+    } else if ui.button("Export") {
+        view.export_form = Some(SeamExportForm::new(
+            seam.clone(),
+            view.seam_processor.filter(),
+        ));
     }
 
     ui.spacing();
@@ -398,7 +400,7 @@ fn render_export_form(ui: &Ui, view: &mut ConnectedView) {
 
     let mut opened = true;
     let mut begun = false;
-    imgui::Window::new(ui, "Export seam data")
+    ui.window("Export seam data")
         .size([500.0, 300.0], Condition::Appearing)
         .opened(&mut opened)
         .build(|| {
