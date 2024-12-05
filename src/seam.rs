@@ -1,6 +1,6 @@
 use crate::{
     edge::{Edge, ProjectedPoint},
-    float_range::{next_f32, prev_f32, RangeF32},
+    float_range::{RangeF32, next_f32, prev_f32},
     geo::Point3f,
 };
 use std::fmt::{self, Display};
@@ -220,13 +220,10 @@ impl Seam {
             }
         }
 
-        (
-            num_interesting_points,
-            RangeStatus::Checked {
-                has_gap,
-                has_overlap,
-            },
-        )
+        (num_interesting_points, RangeStatus::Checked {
+            has_gap,
+            has_overlap,
+        })
     }
 
     pub fn approx_point_at_w(&self, w: f32) -> [f32; 3] {

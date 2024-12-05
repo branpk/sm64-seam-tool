@@ -1,10 +1,10 @@
 use crate::{
     edge::{Edge, ProjectedPoint, ProjectionAxis},
+    float_range::RangeF32,
     float_range::next_f32,
     float_range::prev_f32,
-    float_range::RangeF32,
     game_state::{GameState, Globals},
-    geo::{direction_to_pitch_yaw, pitch_yaw_to_direction, Point3f, Vector3f},
+    geo::{Point3f, Vector3f, direction_to_pitch_yaw, pitch_yaw_to_direction},
     graphics::{self, Camera, GameViewScene, RotateCamera, SurfaceType, Viewport},
     model::ExportProgress,
     process::Process,
@@ -126,9 +126,8 @@ pub fn find_hovered_seam(
     let (_, edge) = nearest_edge?;
     active_seams
         .iter()
-        .filter(|seam| seam.edge1 == edge || seam.edge2 == edge)
+        .find(|seam| seam.edge1 == edge || seam.edge2 == edge)
         .cloned()
-        .next()
 }
 
 pub fn build_game_view_scene(
@@ -328,7 +327,10 @@ pub fn save_seam_to_csv(
     let total = w_ranges.iter().map(|range| range.count()).sum();
     let mut complete = 0;
 
-    for w in w_ranges.into_iter().flat_map(|range| range.iter()) {
+    for w in w_ranges
+        .into_iter()
+        .flat_map(|range| range.iter().collect::<Vec<_>>())
+    {
         let (y, status) = seam.check_point(w, point_filter);
         complete += 1;
 
@@ -337,9 +339,9 @@ pub fn save_seam_to_csv(
         }
 
         if status_filter.matches(status) {
-            write!(
+            writeln!(
                 writer,
-                "{},{:#08X},{},{:#08X},{}\n",
+                "{},{:#08X},{},{:#08X},{}",
                 w,
                 w.to_bits(),
                 y,

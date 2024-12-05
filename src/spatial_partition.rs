@@ -36,7 +36,7 @@ impl SpatialPartition {
         min_bucket..=max_bucket
     }
 
-    fn surface_buckets(&self, surface: &Surface) -> impl Iterator<Item = BucketKey> {
+    fn surface_buckets(&self, surface: &Surface) -> impl Iterator<Item = BucketKey> + use<> {
         let x_range = self.coord_range(surface, 0);
         let z_range = self.coord_range(surface, 2);
 
@@ -52,7 +52,7 @@ impl SpatialPartition {
         }
     }
 
-    fn nearby_surface_indices<'a>(&'a self, surface: &Surface) -> HashSet<usize> {
+    fn nearby_surface_indices(&self, surface: &Surface) -> HashSet<usize> {
         let mut indices = HashSet::new();
         for bucket in self.surface_buckets(surface) {
             for index in self.buckets.get(&bucket).into_iter().flatten() {
@@ -62,7 +62,7 @@ impl SpatialPartition {
         indices
     }
 
-    pub fn pairs<'a>(&'a self) -> impl Iterator<Item = (&Surface, &Surface)> + 'a {
+    pub fn pairs(&self) -> impl Iterator<Item = (&Surface, &Surface)> {
         self.surfaces
             .iter()
             .enumerate()

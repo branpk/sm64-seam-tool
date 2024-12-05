@@ -9,17 +9,16 @@ use crate::{
 };
 use nalgebra::Point3;
 use std::{fs, sync::Arc, sync::Mutex};
-use sysinfo::{System, SystemExt};
+use sysinfo::System;
 
-#[derive(Debug)]
 pub enum App {
-    ConnectionMenu(ConnectionMenu),
+    ConnectionMenu(Box<ConnectionMenu>),
     Connected(ConnectedView),
 }
 
 impl App {
     pub fn new() -> Self {
-        Self::ConnectionMenu(ConnectionMenu::new())
+        Self::ConnectionMenu(Box::from(ConnectionMenu::new()))
     }
 }
 
@@ -48,7 +47,6 @@ impl ConnectionMenu {
     }
 }
 
-#[derive(Debug)]
 pub struct ConnectedView {
     pub process: Process,
     pub globals: Globals,

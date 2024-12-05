@@ -1,9 +1,9 @@
 use super::{
-    pipelines::Pipelines, seam_point_color, seam_view_world_to_screen, upload_vertex_buffer,
-    util::seam_segment_color, FocusedSeamData, SeamSegment, SeamViewScene, Vertex,
+    FocusedSeamData, SeamSegment, SeamViewScene, Vertex, pipelines::Pipelines, seam_point_color,
+    seam_view_world_to_screen, upload_vertex_buffer, util::seam_segment_color,
 };
 use crate::{
-    geo::{point_f32_to_f64, Matrix4f, Point3f, Vector3f},
+    geo::{Matrix4f, Point3f, Vector3f, point_f32_to_f64},
     seam::PointStatus,
 };
 use bytemuck::cast_slice;
@@ -36,7 +36,7 @@ impl<'a> SeamViewSceneBundle<'a> {
         });
         let transform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
-            layout: &transform_bind_group_layout,
+            layout: transform_bind_group_layout,
             entries: &[
                 // u_Proj
                 wgpu::BindGroupEntry {

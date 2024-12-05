@@ -1,4 +1,4 @@
-use super::{Vertex, DEPTH_TEXTURE_FORMAT, NUM_OUTPUT_SAMPLES};
+use super::{DEPTH_TEXTURE_FORMAT, NUM_OUTPUT_SAMPLES, Vertex};
 use bytemuck::offset_of;
 use std::mem::size_of;
 
@@ -19,14 +19,14 @@ impl Pipelines {
         output_format: wgpu::TextureFormat,
     ) -> Self {
         let surface =
-            create_surface_pipeline(device, &transform_bind_group_layout, output_format, true);
+            create_surface_pipeline(device, transform_bind_group_layout, output_format, true);
 
         let hidden_surface =
-            create_surface_pipeline(device, &transform_bind_group_layout, output_format, false);
+            create_surface_pipeline(device, transform_bind_group_layout, output_format, false);
 
         let wall_hitbox = create_wall_hitbox_pipeline(
             device,
-            &transform_bind_group_layout,
+            transform_bind_group_layout,
             output_format,
             true,
             wgpu::PrimitiveTopology::TriangleList,
@@ -34,7 +34,7 @@ impl Pipelines {
 
         let wall_hitbox_depth_pass = create_wall_hitbox_pipeline(
             device,
-            &transform_bind_group_layout,
+            transform_bind_group_layout,
             output_format,
             false,
             wgpu::PrimitiveTopology::TriangleList,
@@ -42,7 +42,7 @@ impl Pipelines {
 
         let wall_hitbox_outline = create_wall_hitbox_pipeline(
             device,
-            &transform_bind_group_layout,
+            transform_bind_group_layout,
             output_format,
             true,
             wgpu::PrimitiveTopology::LineList,
@@ -50,13 +50,13 @@ impl Pipelines {
 
         let seam = create_color_pipeline(
             device,
-            &transform_bind_group_layout,
+            transform_bind_group_layout,
             output_format,
             wgpu::PrimitiveTopology::TriangleList,
         );
         let grid_line = create_color_pipeline(
             device,
-            &transform_bind_group_layout,
+            transform_bind_group_layout,
             output_format,
             wgpu::PrimitiveTopology::LineList,
         );
@@ -84,7 +84,7 @@ fn create_surface_pipeline(
         layout: Some(
             &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: None,
-                bind_group_layouts: &[&transform_bind_group_layout],
+                bind_group_layouts: &[transform_bind_group_layout],
                 push_constant_ranges: &[],
             }),
         ),
@@ -92,6 +92,7 @@ fn create_surface_pipeline(
             module: &device
                 .create_shader_module(wgpu::include_spirv!("../../bin/shaders/surface.vert.spv")),
             entry_point: "main",
+            compilation_options: Default::default(),
             buffers: &[wgpu::VertexBufferLayout {
                 array_stride: size_of::<Vertex>() as wgpu::BufferAddress,
                 step_mode: wgpu::VertexStepMode::Vertex,
@@ -115,6 +116,7 @@ fn create_surface_pipeline(
             module: &device
                 .create_shader_module(wgpu::include_spirv!("../../bin/shaders/surface.frag.spv")),
             entry_point: "main",
+            compilation_options: Default::default(),
             targets: &[Some(wgpu::ColorTargetState {
                 format: output_format,
                 blend: Some(wgpu::BlendState {
@@ -145,6 +147,7 @@ fn create_surface_pipeline(
             alpha_to_coverage_enabled: false,
         },
         multiview: None,
+        cache: None,
     })
 }
 
@@ -160,7 +163,7 @@ fn create_wall_hitbox_pipeline(
         layout: Some(
             &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: None,
-                bind_group_layouts: &[&transform_bind_group_layout],
+                bind_group_layouts: &[transform_bind_group_layout],
                 push_constant_ranges: &[],
             }),
         ),
@@ -168,6 +171,7 @@ fn create_wall_hitbox_pipeline(
             module: &device
                 .create_shader_module(wgpu::include_spirv!("../../bin/shaders/color.vert.spv")),
             entry_point: "main",
+            compilation_options: Default::default(),
             buffers: &[wgpu::VertexBufferLayout {
                 array_stride: size_of::<Vertex>() as wgpu::BufferAddress,
                 step_mode: wgpu::VertexStepMode::Vertex,
@@ -191,6 +195,7 @@ fn create_wall_hitbox_pipeline(
             module: &device
                 .create_shader_module(wgpu::include_spirv!("../../bin/shaders/color.frag.spv")),
             entry_point: "main",
+            compilation_options: Default::default(),
             targets: &[Some(wgpu::ColorTargetState {
                 format: output_format,
                 blend: Some(wgpu::BlendState {
@@ -225,6 +230,7 @@ fn create_wall_hitbox_pipeline(
             alpha_to_coverage_enabled: false,
         },
         multiview: None,
+        cache: None,
     })
 }
 
@@ -239,7 +245,7 @@ fn create_color_pipeline(
         layout: Some(
             &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: None,
-                bind_group_layouts: &[&transform_bind_group_layout],
+                bind_group_layouts: &[transform_bind_group_layout],
                 push_constant_ranges: &[],
             }),
         ),
@@ -247,6 +253,7 @@ fn create_color_pipeline(
             module: &device
                 .create_shader_module(wgpu::include_spirv!("../../bin/shaders/color.vert.spv")),
             entry_point: "main",
+            compilation_options: Default::default(),
             buffers: &[wgpu::VertexBufferLayout {
                 array_stride: size_of::<Vertex>() as wgpu::BufferAddress,
                 step_mode: wgpu::VertexStepMode::Vertex,
@@ -270,6 +277,7 @@ fn create_color_pipeline(
             module: &device
                 .create_shader_module(wgpu::include_spirv!("../../bin/shaders/color.frag.spv")),
             entry_point: "main",
+            compilation_options: Default::default(),
             targets: &[Some(wgpu::ColorTargetState {
                 format: output_format,
                 blend: Some(wgpu::BlendState {
@@ -300,5 +308,6 @@ fn create_color_pipeline(
             alpha_to_coverage_enabled: false,
         },
         multiview: None,
+        cache: None,
     })
 }

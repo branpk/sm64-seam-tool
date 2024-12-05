@@ -1,6 +1,6 @@
 use super::{
-    game_view::GameViewSceneBundle, pipelines::Pipelines, seam_view::SeamViewSceneBundle, Scene,
-    DEPTH_TEXTURE_FORMAT, NUM_OUTPUT_SAMPLES,
+    DEPTH_TEXTURE_FORMAT, NUM_OUTPUT_SAMPLES, Scene, game_view::GameViewSceneBundle,
+    pipelines::Pipelines, seam_view::SeamViewSceneBundle,
 };
 use std::iter;
 
@@ -131,7 +131,7 @@ impl Renderer {
                 label: None,
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &multisample_texture_view,
-                    resolve_target: Some(&output_view),
+                    resolve_target: Some(output_view),
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
                             r: 0.06,
@@ -139,17 +139,19 @@ impl Renderer {
                             b: 0.06,
                             a: 1.0,
                         }),
-                        store: true,
+                        store: wgpu::StoreOp::Store,
                     },
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &depth_texture_view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
-                        store: true,
+                        store: wgpu::StoreOp::Store,
                     }),
                     stencil_ops: None,
                 }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
             });
 
             for bundle in &game_view_scene_bundles {
